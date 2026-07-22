@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Two Moods v2 — NOLA Tropical Weather</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#22252a; color:#cfd3d9; font-family:"Segoe UI",system-ui,sans-serif; padding:32px 40px 80px; }
+  .intro h1 { font-size:20px; font-weight:600; color:#fff; letter-spacing:.02em; }
+  .intro p { font-size:13.5px; color:#9aa1ab; max-width:760px; margin-top:6px; line-height:1.5; }
+  .mock-label { margin:36px 0 10px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8b93a0; }
+  .mock-label b { color:#fff; }
+  .frame { border:1px solid #3a3f47; box-shadow:0 8px 32px rgba(0,0,0,.45); }
+  .app { display:flex; flex-direction:column; height:680px; }
+  .app.tall { height:800px; }
+  .main { display:flex; flex:1; min-height:0; }
+  .rail { width:330px; flex:none; display:flex; flex-direction:column; overflow:hidden; }
+  .mapcol { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .map { flex:1; position:relative; min-height:0; }
+  .map svg { position:absolute; inset:0; width:100%; height:100%; }
+  .num { font-variant-numeric:tabular-nums; }
+
+  /* ============ QUIET MODE — heirloom chart (unchanged) ============ */
+  .quiet { background:#f4efe3; color:#3a3226; }
+  .quiet .masthead { display:flex; align-items:baseline; justify-content:space-between; padding:14px 22px 12px; border-bottom:2px solid #3a3226; }
+  .quiet .masthead .title { font-family:Georgia,'Times New Roman',serif; font-size:24px; color:#2b241a; }
+  .quiet .masthead .title em { font-style:italic; color:#1f3a5f; }
+  .quiet .masthead .org { font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:#6b5d45; }
+  .quiet .rail { border-right:1px solid #d8cdb4; background:#f1ebdc; padding:18px 20px; gap:20px; }
+  .quiet .status { font-family:Georgia,serif; font-size:17px; color:#2b241a; }
+  .quiet .status .ok { display:inline-block; width:9px; height:9px; border-radius:50%; background:#5a7d54; margin-right:7px; }
+  .quiet .kicker { font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#8a7a5c; border-bottom:1px solid #d8cdb4; padding-bottom:4px; margin-bottom:8px; }
+  .quiet .body-text { font-size:12.5px; line-height:1.55; color:#4a4131; }
+  .quiet .issued { font-size:10.5px; color:#8a7a5c; margin-top:6px; font-family:Consolas,monospace; }
+  .quiet .gauge { margin-bottom:14px; }
+  .quiet .gauge .name { display:flex; justify-content:space-between; font-size:11.5px; color:#4a4131; margin-bottom:2px; }
+  .quiet .gauge .name b { font-weight:600; }
+  .quiet .gauge .val { color:#1f3a5f; font-weight:600; }
+  .quiet .foot { margin-top:auto; font-size:10px; color:#8a7a5c; line-height:1.6; border-top:1px solid #d8cdb4; padding-top:10px; }
+  .quiet .plate { position:absolute; right:16px; bottom:14px; text-align:right; font-family:Georgia,serif; font-size:10.5px; color:#8a7a5c; font-style:italic; }
+
+  /* ============ ACTIVE MODE v2 — AHD navy operations desk ============ */
+  .active { background:#0d1830; color:#d5deed; }
+  .active .masthead { display:flex; align-items:center; justify-content:space-between; padding:10px 22px; background:#081020; border-bottom:1px solid #1d3050; }
+  .active .masthead .title { font-size:15px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#fff; }
+  .active .masthead .title span { color:#5f7495; font-weight:400; }
+  .active .warnchip { font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; background:#d94141; color:#fff; padding:4px 10px; }
+  .active .rail { border-right:1px solid #1d3050; background:#0b1424; padding:16px 18px; gap:15px; }
+  .active .storm-name { font-size:22px; font-weight:700; color:#fff; }
+  .active .cat { display:inline-block; background:#e9c46a; color:#161006; font-weight:800; font-size:12px; padding:2px 8px; margin-left:8px; vertical-align:3px; }
+  .active .stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px; background:#1d3050; border:1px solid #1d3050; margin-top:10px; }
+  .active .stats div { background:#0f1c33; padding:7px 9px; }
+  .active .stats .l { font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:#5f7495; }
+  .active .stats .v { font-size:15px; font-weight:700; color:#fff; margin-top:2px; }
+  .active .adv { font-family:Consolas,monospace; font-size:11px; color:#8ca0bf; margin-top:9px; }
+  .active .adv b { color:#e9c46a; }
+  .active .kicker { font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#5f7495; border-bottom:1px solid #1d3050; padding-bottom:4px; margin-bottom:7px; }
+  .alert { border-left:3px solid; padding:6px 9px; margin-bottom:6px; background:#0f1c33; font-size:11.5px; line-height:1.4; }
+  .alert b { display:block; font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
+  .alert span { color:#8ca0bf; }
+  .a-hw { border-color:#d94141; } .a-hw b { color:#ff7a7a; }
+  .a-ssw { border-color:#b04fd6; } .a-ssw b { color:#d99aef; }
+  .a-tsw { border-color:#4a7fd4; } .a-tsw b { color:#8ab4f0; }
+  .models { display:grid; grid-template-columns:1fr 1fr; gap:3px 12px; font-size:11.5px; }
+  .models .m { display:flex; align-items:center; gap:7px; color:#b3c1d6; }
+  .models .sw { width:16px; height:0; border-top:2px solid; }
+  .models .sw.dash { border-top-style:dashed; }
+  .models .grp { grid-column:1 / -1; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#5f7495; margin-top:5px; }
+  .active .gauge { margin-bottom:11px; }
+  .active .gauge .name { display:flex; justify-content:space-between; font-size:11px; color:#b3c1d6; margin-bottom:2px; }
+  .active .gauge .val { color:#ff9a5c; font-weight:700; }
+  .active .foot { margin-top:auto; font-family:Consolas,monospace; font-size:9.5px; color:#5f7495; line-height:1.7; border-top:1px solid #1d3050; padding-top:8px; }
+  .simtag { position:absolute; left:16px; bottom:12px; font-family:Consolas,monospace; font-size:9.5px; letter-spacing:.12em; color:#5f7495; border:1px solid #1d3050; padding:3px 7px; background:rgba(8,16,32,.7); }
+
+  .ipanel { height:180px; flex:none; background:#0b1424; border-top:1px solid #1d3050; padding:10px 18px 8px; }
+  .ipanel .head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  .ipanel .head .t { font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#5f7495; }
+  .ipanel .head .s { font-family:Consolas,monospace; font-size:9.5px; color:#5f7495; }
+  .ipanel svg { width:100%; height:138px; }
+
+  .between { margin:26px auto 0; max-width:760px; font-size:13px; line-height:1.55; color:#9aa1ab; text-align:center; }
+  .between b { color:#e9c46a; }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>v2 — active mode re-tinted in AHD navy, intensity guidance added</h1>
+  <p>Changes from v1: the operations desk now sits on the AH Datalytics navy family instead of neutral charcoal;
+  a new intensity guidance panel runs under the map (model wind-speed forecasts against the category ladder);
+  and the model legend gains an AI guidance group (ECMWF AIFS, Google DeepMind) drawn dashed to distinguish them from physics models.</p>
+</div>
+
+<div class="mock-label">Mockup 1 · <b>Quiet mode — the heirloom chart</b> (unchanged from v1)</div>
+<div class="frame quiet app">
+  <div class="masthead">
+    <div class="title">The <em>Gulf Watch</em> — a New Orleans tropical weather desk</div>
+    <div class="org">AH Datalytics · Tropical Outlook</div>
+  </div>
+  <div class="main">
+    <div class="rail">
+      <div>
+        <div class="status"><span class="ok"></span>No active systems</div>
+        <div class="issued num">TROPICAL WEATHER OUTLOOK · 1:00 PM CDT · NEXT 7:00 PM</div>
+      </div>
+      <div>
+        <div class="kicker">Seven-Day Outlook</div>
+        <div class="body-text">A tropical wave over the Bay of Campeche has a <b>20%</b> chance of development
+        before moving inland. A second area east of the Windward Islands is forecast to reach more favorable
+        conditions late this week — <b>60%</b> chance of a depression within seven days.</div>
+      </div>
+      <div>
+        <div class="kicker">Lakefront &amp; Coastal Gauges — last 48 hours</div>
+        <div class="gauge">
+          <div class="name"><b>New Canal Station</b><span class="val num">+0.4 ft</span></div>
+          <svg width="100%" height="44" viewBox="0 0 280 44" preserveAspectRatio="none">
+            <rect x="0" y="18" width="280" height="12" fill="#e5dcc6"/>
+            <polyline points="0,26 20,24 40,27 60,25 80,23 100,26 120,24 140,22 160,25 180,23 200,21 220,24 240,22 260,20 280,22" fill="none" stroke="#1f3a5f" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div class="gauge">
+          <div class="name"><b>Shell Beach</b><span class="val num">+0.2 ft</span></div>
+          <svg width="100%" height="44" viewBox="0 0 280 44" preserveAspectRatio="none">
+            <rect x="0" y="16" width="280" height="14" fill="#e5dcc6"/>
+            <polyline points="0,28 20,22 40,29 60,21 80,28 100,22 120,29 140,21 160,27 180,22 200,28 220,21 240,27 260,22 280,26" fill="none" stroke="#1f3a5f" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div class="gauge">
+          <div class="name"><b>Grand Isle</b><span class="val num">+0.3 ft</span></div>
+          <svg width="100%" height="44" viewBox="0 0 280 44" preserveAspectRatio="none">
+            <rect x="0" y="17" width="280" height="13" fill="#e5dcc6"/>
+            <polyline points="0,25 20,20 40,27 60,20 80,26 100,20 120,27 140,21 160,26 180,20 200,26 220,20 240,25 260,21 280,24" fill="none" stroke="#1f3a5f" stroke-width="1.5"/>
+          </svg>
+        </div>
+      </div>
+      <div class="foot">Sources: National Hurricane Center · NWS New Orleans/Baton Rouge · NOAA Tides &amp; Currents<br>Data as of 1:04 PM CDT</div>
+    </div>
+    <div class="map">
+      <svg viewBox="0 0 900 630" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <pattern id="hatchO" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#d97b29" stroke-width="1.4"/>
+          </pattern>
+          <pattern id="hatchR" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#b3402e" stroke-width="1.4"/>
+          </pattern>
+        </defs>
+        <rect width="900" height="630" fill="#f4efe3"/>
+        <g stroke="#ddd2b8" stroke-width="1">
+          <line x1="90" y1="0" x2="90" y2="630"/><line x1="180" y1="0" x2="180" y2="630"/><line x1="270" y1="0" x2="270" y2="630"/><line x1="360" y1="0" x2="360" y2="630"/><line x1="450" y1="0" x2="450" y2="630"/><line x1="540" y1="0" x2="540" y2="630"/><line x1="630" y1="0" x2="630" y2="630"/><line x1="720" y1="0" x2="720" y2="630"/><line x1="810" y1="0" x2="810" y2="630"/>
+          <line x1="0" y1="90" x2="900" y2="90"/><line x1="0" y1="180" x2="900" y2="180"/><line x1="0" y1="270" x2="900" y2="270"/><line x1="0" y1="360" x2="900" y2="360"/><line x1="0" y1="450" x2="900" y2="450"/><line x1="0" y1="540" x2="900" y2="540"/>
+        </g>
+        <g font-family="Consolas,monospace" font-size="9" fill="#b0a385">
+          <text x="93" y="626">96°W</text><text x="273" y="626">92°W</text><text x="453" y="626">88°W</text><text x="633" y="626">84°W</text><text x="813" y="626">80°W</text>
+          <text x="4" y="87">30°N</text><text x="4" y="177">28°N</text><text x="4" y="267">26°N</text><text x="4" y="357">24°N</text><text x="4" y="447">22°N</text><text x="4" y="537">20°N</text>
+        </g>
+        <path d="M0,0 H770 L747,54 L787,139 L810,216 L805,256 L792,288 L760,283 L724,225 L693,162 L675,108 L585,81 L553,63 L486,49 L450,40 L409,49 L415,85 L403,118 L370,100 L360,103 L301,94 L279,90 L189,81 L144,99 L90,140 L27,166 L36,252 L9,418 L30,480 L85,553 L180,560 L270,545 L337,526 L350,490 L373,459 L430,455 L504,463 L516,500 L525,630 L0,630 Z"
+              fill="#eae1ca" stroke="#6b5d45" stroke-width="1.3"/>
+        <path d="M589,432 L660,445 L760,470 L900,490 L900,520 L750,505 L640,470 L595,450 Z" fill="#eae1ca" stroke="#6b5d45" stroke-width="1.3"/>
+        <ellipse cx="200" cy="500" rx="80" ry="52" fill="url(#hatchO)" stroke="#d97b29" stroke-width="1.5" stroke-dasharray="5 4" opacity=".85"/>
+        <text x="200" y="497" text-anchor="middle" font-family="Georgia,serif" font-size="20" fill="#a35a17" font-weight="bold">20%</text>
+        <text x="200" y="514" text-anchor="middle" font-family="Consolas,monospace" font-size="9" fill="#a35a17" letter-spacing="1">7-DAY · AL91</text>
+        <ellipse cx="800" cy="560" rx="85" ry="50" fill="url(#hatchR)" stroke="#b3402e" stroke-width="1.5" stroke-dasharray="5 4" opacity=".85"/>
+        <text x="800" y="557" text-anchor="middle" font-family="Georgia,serif" font-size="20" fill="#8d2f20" font-weight="bold">60%</text>
+        <text x="800" y="574" text-anchor="middle" font-family="Consolas,monospace" font-size="9" fill="#8d2f20" letter-spacing="1">7-DAY · AL92</text>
+        <path d="M718,548 Q640,520 570,505" fill="none" stroke="#b3402e" stroke-width="1.4" stroke-dasharray="2 5"/>
+        <circle cx="357" cy="76" r="4.5" fill="#1f3a5f"/>
+        <circle cx="357" cy="76" r="9" fill="none" stroke="#1f3a5f" stroke-width="1" opacity=".5"/>
+        <text x="370" y="72" font-family="Georgia,serif" font-size="13" font-style="italic" fill="#1f3a5f">New Orleans</text>
+        <g transform="translate(838,60)" stroke="#8a7a5c" fill="none">
+          <circle r="22" stroke-width="1"/>
+          <path d="M0,-22 L4,-6 L0,0 L-4,-6 Z" fill="#8a7a5c" stroke="none"/>
+          <line x1="0" y1="10" x2="0" y2="22"/><line x1="-22" y1="0" x2="-10" y2="0"/><line x1="10" y1="0" x2="22" y2="0"/>
+          <text y="-28" text-anchor="middle" font-family="Georgia,serif" font-size="10" fill="#8a7a5c" stroke="none">N</text>
+        </g>
+      </svg>
+      <div class="plate">Gulf of Mexico · Tropical outlook chart · after the household tracking charts of New Orleans</div>
+    </div>
+  </div>
+</div>
+
+<div class="between"><b>When the map goes dark, pay attention.</b> Now in the house navy.</div>
+
+<div class="mock-label">Mockup 2 · <b>Active mode v2 — AHD navy operations desk + intensity guidance</b></div>
+<div class="frame active app tall">
+  <div class="masthead">
+    <div class="title">The Gulf Watch <span>· New Orleans Tropical Weather Desk · AH Datalytics</span></div>
+    <div class="warnchip">Hurricane Warning in Effect</div>
+  </div>
+  <div class="main">
+    <div class="rail">
+      <div>
+        <div class="storm-name">Hurricane Solene<span class="cat">CAT 2</span></div>
+        <div class="stats">
+          <div><div class="l">Winds</div><div class="v num">105 <span style="font-size:10px;color:#8ca0bf">mph</span></div></div>
+          <div><div class="l">Pressure</div><div class="v num">967 <span style="font-size:10px;color:#8ca0bf">mb</span></div></div>
+          <div><div class="l">Motion</div><div class="v num">NW 12</div></div>
+        </div>
+        <div class="adv num">ADVISORY 14 · 4:00 PM CDT · NEXT <b>10:00 PM</b> (T−2:41)</div>
+      </div>
+      <div>
+        <div class="kicker">Watches &amp; Warnings — Metro Parishes</div>
+        <div class="alert a-hw"><b>Hurricane Warning</b><span>Orleans · Jefferson · Plaquemines · St. Bernard</span></div>
+        <div class="alert a-ssw"><b>Storm Surge Warning</b><span>Lake Pontchartrain · Lake Borgne · MS coast</span></div>
+        <div class="alert a-tsw"><b>Tropical Storm Warning</b><span>St. Tammany · Tangipahoa</span></div>
+      </div>
+      <div>
+        <div class="kicker">Guidance — 12z Cycle</div>
+        <div class="models">
+          <div class="grp">Physics</div>
+          <div class="m"><span class="sw" style="border-color:#ef8354"></span>GFS</div>
+          <div class="m"><span class="sw" style="border-color:#64a6dd"></span>ECMWF</div>
+          <div class="m"><span class="sw" style="border-color:#b58cd9"></span>HAFS-A</div>
+          <div class="m"><span class="sw" style="border-color:#e2c765"></span>HAFS-B</div>
+          <div class="m"><span class="sw" style="border-color:#6fcf97"></span>UKMET</div>
+          <div class="m"><span class="sw" style="border-color:#ffffff"></span>Consensus</div>
+          <div class="grp">AI Guidance</div>
+          <div class="m"><span class="sw dash" style="border-color:#5ec8d8"></span>AIFS (ECMWF)</div>
+          <div class="m"><span class="sw dash" style="border-color:#f0a8d0"></span>DeepMind WL</div>
+        </div>
+      </div>
+      <div>
+        <div class="kicker">Water Levels — last 48 hours</div>
+        <div class="gauge">
+          <div class="name"><b>Shell Beach</b><span class="val num">+3.1 ft ↑</span></div>
+          <svg width="100%" height="40" viewBox="0 0 280 40" preserveAspectRatio="none">
+            <rect x="0" y="24" width="280" height="8" fill="#13223c"/>
+            <polyline points="0,30 40,29 80,28 120,26 160,22 200,17 240,11 280,5" fill="none" stroke="#ff9a5c" stroke-width="1.8"/>
+          </svg>
+        </div>
+        <div class="gauge">
+          <div class="name"><b>New Canal Station</b><span class="val num">+1.8 ft ↑</span></div>
+          <svg width="100%" height="40" viewBox="0 0 280 40" preserveAspectRatio="none">
+            <rect x="0" y="24" width="280" height="8" fill="#13223c"/>
+            <polyline points="0,30 40,30 80,29 120,28 160,26 200,23 240,19 280,14" fill="none" stroke="#ff9a5c" stroke-width="1.8"/>
+          </svg>
+        </div>
+      </div>
+      <div class="foot">NHC ADV 14 16:00 CDT · MODELS 12Z · GAUGES 16:42 CDT · ALERTS LIVE<br>NHC / NWS LIX / NOAA CO-OPS / ECMWF / GOOGLE WL</div>
+    </div>
+    <div class="mapcol">
+      <div class="map">
+        <svg viewBox="0 0 900 500" preserveAspectRatio="xMidYMid slice">
+          <rect width="900" height="500" fill="#0d1830"/>
+          <g stroke="#14213a" stroke-width="1">
+            <line x1="90" y1="0" x2="90" y2="500"/><line x1="180" y1="0" x2="180" y2="500"/><line x1="270" y1="0" x2="270" y2="500"/><line x1="360" y1="0" x2="360" y2="500"/><line x1="450" y1="0" x2="450" y2="500"/><line x1="540" y1="0" x2="540" y2="500"/><line x1="630" y1="0" x2="630" y2="500"/><line x1="720" y1="0" x2="720" y2="500"/><line x1="810" y1="0" x2="810" y2="500"/>
+            <line x1="0" y1="90" x2="900" y2="90"/><line x1="0" y1="180" x2="900" y2="180"/><line x1="0" y1="270" x2="900" y2="270"/><line x1="0" y1="360" x2="900" y2="360"/><line x1="0" y1="450" x2="900" y2="450"/>
+          </g>
+          <path d="M0,0 H770 L747,54 L787,139 L810,216 L805,256 L792,288 L760,283 L724,225 L693,162 L675,108 L585,81 L553,63 L486,49 L450,40 L409,49 L415,85 L403,118 L370,100 L360,103 L301,94 L279,90 L189,81 L144,99 L90,140 L27,166 L36,252 L9,418 L30,480 L85,500 L0,500 Z"
+                fill="#1a2a49" stroke="#33507e" stroke-width="1.2"/>
+          <path d="M589,432 L660,445 L760,470 L900,490 L900,500 L640,500 L595,450 Z" fill="#1a2a49" stroke="#33507e" stroke-width="1.2"/>
+
+          <path d="M279,90 L301,94 L360,103 L370,100 L403,118 L415,85 L409,49 L450,40" fill="none" stroke="#d94141" stroke-width="4" opacity=".95"/>
+          <path d="M189,81 L279,90 M450,40 L486,49 L553,63" fill="none" stroke="#4a7fd4" stroke-width="4" opacity=".9"/>
+
+          <g stroke-width="1.2" fill="none" opacity=".8">
+            <path d="M590,360 Q470,240 345,55" stroke="#ef8354"/>
+            <path d="M590,360 Q490,230 390,50" stroke="#64a6dd"/>
+            <path d="M590,360 Q450,250 320,70" stroke="#b58cd9"/>
+            <path d="M590,360 Q480,235 370,45" stroke="#e2c765"/>
+            <path d="M590,360 Q440,260 300,90" stroke="#6fcf97"/>
+          </g>
+          <g stroke-width="1.4" fill="none" opacity=".85" stroke-dasharray="5 4">
+            <path d="M590,360 Q485,225 375,42" stroke="#5ec8d8"/>
+            <path d="M590,360 Q460,245 335,60" stroke="#f0a8d0"/>
+          </g>
+          <path d="M590,360 Q470,240 355,55" stroke="#ffffff" stroke-width="2" fill="none" opacity=".9"/>
+
+          <path d="M600,355 L545,280 L495,205 L455,135 L420,45 L330,40 L330,120 L390,225 L430,300 L580,365 Z"
+                fill="#e9c46a" opacity=".10"/>
+          <path d="M600,355 L545,280 L495,205 L455,135 L420,45 L330,40 L330,120 L390,225 L430,300 L580,365 Z"
+                fill="none" stroke="#e9c46a" stroke-width="1.2" stroke-dasharray="6 4" opacity=".7"/>
+
+          <path d="M700,480 L650,430 L590,360" fill="none" stroke="#8ca0bf" stroke-width="1.5" stroke-dasharray="2 4"/>
+          <path d="M590,360 L520,290 L455,215 L400,150 L358,95 L340,60" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+          <g fill="#ffffff">
+            <circle cx="700" cy="480" r="3" opacity=".5"/><circle cx="650" cy="430" r="3" opacity=".5"/>
+            <circle cx="520" cy="290" r="4.5"/><circle cx="455" cy="215" r="4.5"/><circle cx="400" cy="150" r="4.5"/><circle cx="340" cy="60" r="4.5"/>
+          </g>
+          <circle cx="590" cy="360" r="9" fill="none" stroke="#fff" stroke-width="2.5"/>
+          <circle cx="590" cy="360" r="3" fill="#fff"/>
+          <g font-family="Consolas,monospace" font-size="10.5" fill="#d5deed">
+            <text x="604" y="378">CAT 2 · NOW</text>
+            <text x="532" y="285">CAT 2 · WED 1PM</text>
+            <text x="467" y="210">CAT 2 · WED 7PM</text>
+            <text x="412" y="147">CAT 1 · THU 7AM</text>
+            <text x="352" y="52">TS · THU 7PM</text>
+          </g>
+          <circle cx="357" cy="76" r="4.5" fill="#ff9a5c"/>
+          <circle cx="357" cy="76" r="10" fill="none" stroke="#ff9a5c" stroke-width="1.2" opacity=".6"/>
+          <text x="285" y="66" font-size="12" font-weight="700" fill="#ff9a5c" font-family="Segoe UI,sans-serif">NEW ORLEANS</text>
+          <text x="620" y="482" font-family="Consolas,monospace" font-size="9.5" fill="#5f7495" letter-spacing="2">TS-FORCE WIND ARRIVAL: WED ~4 PM CDT</text>
+        </svg>
+        <div class="simtag">SIMULATED STORM — MOCKUP DATA</div>
+      </div>
+      <div class="ipanel">
+        <div class="head">
+          <div class="t">Intensity Guidance — max sustained winds, next 96 h</div>
+          <div class="s">OFFICIAL NHC FORECAST IN WHITE · AI GUIDANCE DASHED</div>
+        </div>
+        <svg viewBox="0 0 660 150" preserveAspectRatio="none">
+          <rect x="40" y="88" width="560" height="41" fill="#101f38"/>
+          <rect x="40" y="62" width="560" height="26" fill="#13233f"/>
+          <rect x="40" y="44" width="560" height="18" fill="#162846"/>
+          <rect x="40" y="22" width="560" height="22" fill="#1a2c4d"/>
+          <g font-family="Consolas,monospace" font-size="8.5" fill="#5f7495">
+            <text x="606" y="126">TS</text><text x="606" y="80">CAT 1</text><text x="606" y="56">CAT 2</text><text x="606" y="38">CAT 3</text><text x="606" y="20">CAT 4</text>
+          </g>
+          <line x1="40" y1="129" x2="600" y2="129" stroke="#1d3050" stroke-width="1"/>
+          <g font-family="Consolas,monospace" font-size="8.5" fill="#5f7495" text-anchor="middle">
+            <text x="40" y="145">NOW</text><text x="180" y="145">WED 7A</text><text x="320" y="145">WED 7P</text><text x="460" y="145">THU 7A</text><text x="600" y="145">THU 7P</text>
+          </g>
+          <line x1="460" y1="14" x2="460" y2="132" stroke="#ff9a5c" stroke-width="1" stroke-dasharray="3 3" opacity=".6"/>
+          <text x="452" y="12" font-family="Consolas,monospace" font-size="8.5" fill="#ff9a5c" text-anchor="end">LANDFALL</text>
+          <g fill="none" stroke-width="1.2" opacity=".85">
+            <polyline points="40,51.5 180,57.4 320,63.3 460,75.1 600,122.3" stroke="#ef8354"/>
+            <polyline points="40,51.5 180,39.7 320,33.8 460,57.4 600,110.5" stroke="#b58cd9"/>
+            <polyline points="40,51.5 180,43.2 320,45.6 460,69.2 600,116.4" stroke="#e2c765"/>
+            <polyline points="40,51.5 180,48.0 320,52.7 460,66.8 600,118.8" stroke="#6fcf97"/>
+            <polyline points="40,51.5 180,50.3 320,57.4 460,69.2 600,121.1" stroke="#e88ab0"/>
+          </g>
+          <g fill="none" stroke-width="1.4" opacity=".9" stroke-dasharray="5 4">
+            <polyline points="40,51.5 180,59.7 320,66.8 460,81.0 600,125.9" stroke="#5ec8d8"/>
+            <polyline points="40,51.5 180,43.2 320,48.0 460,64.5 600,116.4" stroke="#f0a8d0"/>
+          </g>
+          <polyline points="40,51.5 180,45.6 320,51.5 460,63.3 600,116.4" fill="none" stroke="#ffffff" stroke-width="2.4"/>
+          <g fill="#ffffff"><circle cx="40" cy="51.5" r="3"/><circle cx="180" cy="45.6" r="3"/><circle cx="320" cy="51.5" r="3"/><circle cx="460" cy="63.3" r="3"/><circle cx="600" cy="116.4" r="3"/></g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="between" style="margin-top:30px">
+  React to: the navy register (vs v1 charcoal) · the intensity panel placement under the map · dashed AI guidance
+  on both the map and the intensity chart · legend grouping (Physics vs AI).
+</div>
+
+</body>
+</html>
