@@ -58,6 +58,34 @@ export function countdown(toIso: string, now: Date = new Date()): string {
   return `T−${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
+/**
+ * Compact CDT day+hour tick for chart x-axes, e.g. "WED 7A" (the intensity
+ * panel's mockup style — a 3-letter weekday plus the hour with a single
+ * A/P suffix, no minutes since these are forecast-hour ticks, not exact
+ * times). Callers wanting a "NOW" tick for tau=0 handle that themselves —
+ * this always renders the actual wall-clock day/hour.
+ */
+export function cdtTickLabel(iso: string): string {
+  const date = new Date(iso);
+
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: CHICAGO_TIME_ZONE,
+    weekday: "short",
+  })
+    .format(date)
+    .toUpperCase();
+
+  const hourParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CHICAGO_TIME_ZONE,
+    hour: "numeric",
+    hour12: true,
+  }).formatToParts(date);
+  const hour = hourParts.find((p) => p.type === "hour")?.value ?? "";
+  const dayPeriod = hourParts.find((p) => p.type === "dayPeriod")?.value ?? "";
+
+  return `${weekday} ${hour}${dayPeriod.charAt(0)}`;
+}
+
 /** Human label for a StormEntry's NHC classification code (mockup's "Hurricane"/"Tropical Storm" prefix). */
 export function stormTypeLabel(classification: string): string {
   switch (classification) {

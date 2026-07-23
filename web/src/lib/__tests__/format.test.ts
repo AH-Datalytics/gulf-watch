@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   categoryFor,
+  cdtTickLabel,
   cdtTime,
   countdown,
   formatCycle,
@@ -112,6 +113,18 @@ describe("formatCycle", () => {
 
   it("handles a midnight cycle", () => {
     expect(formatCycle("2026072300")).toBe("00Z");
+  });
+});
+
+describe("cdtTickLabel", () => {
+  it("renders a compact weekday+hour tick (intensity panel style)", () => {
+    // 2026-07-22T21:00:00Z is 4:00 PM CDT on a Wednesday.
+    expect(cdtTickLabel("2026-07-22T21:00:00Z")).toBe("WED 4P");
+  });
+
+  it("renders an AM tick on the following day", () => {
+    // 2026-07-23T09:00:00Z is 4:00 AM CDT on a Thursday.
+    expect(cdtTickLabel("2026-07-23T09:00:00Z")).toBe("THU 4A");
   });
 });
 

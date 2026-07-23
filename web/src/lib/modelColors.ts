@@ -15,6 +15,13 @@ export const MODEL_COLORS: Record<string, string> = {
   OFCL: "#ffffff", // Official
   AIFS: "#5ec8d8", // AIFS (ECMWF) — AI guidance
   DMWL: "#f0a8d0", // DeepMind WL — AI guidance
+  // Intensity-only models (SHIPS/LGEM statistical guidance) — no map track,
+  // so these two appear only in the Task 11 intensity panel, never here in
+  // the map's model legend/spaghetti. Muted hues distinct from the physics
+  // group above, picked to sit in the same family without competing with
+  // AIFS's cyan or DMWL's pink.
+  DSHP: "#6fbfa8", // SHIPS
+  LGEM: "#d98f8f", // LGEM
 };
 
 export const DEFAULT_MODEL_COLOR = "#8ca0bf";

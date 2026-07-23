@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import StormMap from "@/components/StormMap";
+import { IntensityPanel } from "@/components/IntensityPanel";
 import { Rail } from "@/components/Rail";
 import { useMetroAlerts } from "@/components/Alerts";
 import { cdtTime } from "@/lib/format";
@@ -70,6 +71,14 @@ export default function Home() {
             showRadar={showRadar}
           />
           {dashboard.demo && <div className="simtag">SIMULATED STORM — DEMO DATA</div>}
+          {dashboard.mode === "active" && dashboard.storm && dashboard.intensity && (
+            <IntensityPanel
+              intensity={dashboard.intensity}
+              storm={dashboard.storm}
+              track={dashboard.geo.track}
+              visibleModels={visibleModels}
+            />
+          )}
         </div>
       </div>
 
