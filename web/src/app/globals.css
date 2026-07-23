@@ -107,3 +107,103 @@ a {
 .num {
   font-variant-numeric: tabular-nums;
 }
+
+/* ============ Page shell: rail + map column (mockup .main/.rail/.mapcol) ============
+   Task 8 only builds the map column; the rail is a Task 9 placeholder here. */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.rail {
+  width: 330px;
+  flex: none;
+  border-right: 1px solid var(--rule);
+  background: var(--panel);
+}
+
+.mapcol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gw-map {
+  flex: 1;
+  position: relative;
+  min-height: 480px;
+}
+
+/* ============ Map labels — plain HTML/CSS markers (no glyph-server dependency) ============ */
+.gw-map-label {
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.gw-graticule-label {
+  font-size: 9px;
+  color: var(--grid-label);
+  letter-spacing: 0.02em;
+}
+
+.gw-track-label {
+  font-size: 10.5px;
+  color: var(--ink);
+  text-shadow:
+    0 0 3px var(--water),
+    0 0 5px var(--water);
+}
+
+.gw-outlook-label {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+  text-shadow:
+    0 0 4px var(--water),
+    0 0 6px var(--water);
+}
+
+/* NOLA marker: navy serif-italic dot+label in quiet mode, orange bold-caps in active
+   (mockup .quiet "New Orleans" text vs .active "NEW ORLEANS" text) — driven entirely
+   by [data-mode] cascade, no JS branching needed. */
+.gw-nola-marker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.gw-nola-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-2) 35%, transparent);
+  flex: none;
+}
+
+.gw-nola-label {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--accent-2);
+}
+
+[data-mode="active"] .gw-nola-label {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 12px;
+}
