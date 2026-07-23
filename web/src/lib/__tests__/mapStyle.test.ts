@@ -11,7 +11,12 @@ import {
   type ModeColors,
 } from "../mapStyle";
 
-const COLORS: ModeColors = {
+// Both fixtures are real token sets (copied from globals.css), not just the
+// quiet one: outlookColor() previously aliased --warn-ssw/--warn-hw, which
+// match --outlook-low/--outlook-high by coincidence in quiet mode but diverge
+// in active mode (--warn-ssw is storm-surge purple there) — a quiet-only
+// fixture couldn't have caught that.
+const QUIET_COLORS: ModeColors = {
   water: "#f4efe3",
   land: "#eae1ca",
   coast: "#6b5d45",
@@ -22,7 +27,23 @@ const COLORS: ModeColors = {
   warnHw: "#b3402e",
   warnSsw: "#d97b29",
   warnTsw: "#1f3a5f",
-  ink: "#2b241a",
+  outlookLow: "#d97b29",
+  outlookHigh: "#b3402e",
+};
+
+const ACTIVE_COLORS: ModeColors = {
+  water: "#0d1830",
+  land: "#1a2a49",
+  coast: "#33507e",
+  grid: "#14213a",
+  gridLabel: "#5f7495",
+  accent: "#e9c46a",
+  accent2: "#ff9a5c",
+  warnHw: "#d94141",
+  warnSsw: "#b04fd6",
+  warnTsw: "#4a7fd4",
+  outlookLow: "#d97b29",
+  outlookHigh: "#b3402e",
 };
 
 describe("wwColor", () => {
@@ -59,12 +80,25 @@ describe("wwColor", () => {
 });
 
 describe("outlookColor", () => {
-  it("uses the hurricane-warning token for high risk", () => {
-    expect(outlookColor("high", COLORS)).toBe(COLORS.warnHw);
+  it("uses --outlook-low for low risk, in both modes", () => {
+    expect(outlookColor("low", QUIET_COLORS)).toBe(QUIET_COLORS.outlookLow);
+    expect(outlookColor("low", ACTIVE_COLORS)).toBe(ACTIVE_COLORS.outlookLow);
   });
-  it("uses the storm-surge/low token for low or medium risk", () => {
-    expect(outlookColor("low", COLORS)).toBe(COLORS.warnSsw);
-    expect(outlookColor("medium", COLORS)).toBe(COLORS.warnSsw);
+
+  it("uses --outlook-high for medium and high risk, in both modes", () => {
+    expect(outlookColor("medium", QUIET_COLORS)).toBe(QUIET_COLORS.outlookHigh);
+    expect(outlookColor("high", QUIET_COLORS)).toBe(QUIET_COLORS.outlookHigh);
+    expect(outlookColor("medium", ACTIVE_COLORS)).toBe(ACTIVE_COLORS.outlookHigh);
+    expect(outlookColor("high", ACTIVE_COLORS)).toBe(ACTIVE_COLORS.outlookHigh);
+  });
+
+  it("never returns --warn-ssw/--warn-hw — those are a different semantic axis (Alerts.tsx severity, not genesis risk)", () => {
+    // Regression check for the exact bug found in review: low-risk genesis
+    // areas rendering in --warn-ssw's active-mode purple (#b04fd6) instead of
+    // the intended orange.
+    expect(outlookColor("low", ACTIVE_COLORS)).not.toBe(ACTIVE_COLORS.warnSsw);
+    expect(outlookColor("low", ACTIVE_COLORS)).toBe("#d97b29");
+    expect(outlookColor("high", ACTIVE_COLORS)).not.toBe(ACTIVE_COLORS.warnHw);
   });
 });
 

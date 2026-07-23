@@ -34,7 +34,8 @@ export interface ModeColors {
   warnHw: string;
   warnSsw: string;
   warnTsw: string;
-  ink: string;
+  outlookLow: string;
+  outlookHigh: string;
 }
 
 const FALLBACK_COLORS: ModeColors = {
@@ -48,7 +49,8 @@ const FALLBACK_COLORS: ModeColors = {
   warnHw: "#b3402e",
   warnSsw: "#d97b29",
   warnTsw: "#1f3a5f",
-  ink: "#2b241a",
+  outlookLow: "#d97b29",
+  outlookHigh: "#b3402e",
 };
 
 /** Reads the current --token values off <html> (server/non-DOM callers get the quiet fallback). */
@@ -67,7 +69,8 @@ export function readModeColors(): ModeColors {
     warnHw: read("--warn-hw", FALLBACK_COLORS.warnHw),
     warnSsw: read("--warn-ssw", FALLBACK_COLORS.warnSsw),
     warnTsw: read("--warn-tsw", FALLBACK_COLORS.warnTsw),
-    ink: read("--ink", FALLBACK_COLORS.ink),
+    outlookLow: read("--outlook-low", FALLBACK_COLORS.outlookLow),
+    outlookHigh: read("--outlook-high", FALLBACK_COLORS.outlookHigh),
   };
 }
 
@@ -104,9 +107,19 @@ export function wwColor(tcww: string | undefined | null): string {
   return isWatch ? WW_COLORS.tsWatch : WW_COLORS.tsWarning;
 }
 
-/** Outlook genesis-area fill color from NHC gtwo RISK7DAY, mode-aware (matches the quiet mockup's orange/red hatch exactly). */
+/**
+ * Outlook genesis-area fill color from NHC gtwo RISK7DAY, mode-aware (matches
+ * the quiet mockup's orange/red hatch exactly). Uses the dedicated
+ * --outlook-low/--outlook-high tokens, NOT --warn-ssw/--warn-hw: those are
+ * watch/warning severity colors (Alerts.tsx), a different semantic axis that
+ * happens to share quiet-mode hex values but diverges in active mode
+ * (--warn-ssw is storm-surge purple there) — reusing them previously made a
+ * low-risk genesis area render in storm-surge purple. "low" -> outlookLow;
+ * "medium" and "high" both -> outlookHigh (the mockup renders its 60%/medium
+ * area in the same red as its notional "high").
+ */
 export function outlookColor(risk7day: string | undefined | null, colors: ModeColors): string {
-  return (risk7day ?? "").toLowerCase() === "high" ? colors.warnHw : colors.warnSsw;
+  return (risk7day ?? "").toLowerCase() === "low" ? colors.outlookLow : colors.outlookHigh;
 }
 
 /** Injects a `_color` property into each feature via `colorFor`, for data-driven paint (`["get","_color"]`). */

@@ -24,6 +24,15 @@
   --warn-hw: #b3402e;
   --warn-ssw: #d97b29;
   --warn-tsw: #1f3a5f;
+  /* Genesis-area (outlook) fill colors — deliberately their OWN tokens, not
+     aliases of --warn-*: those are watch/warning severity colors (used by
+     Alerts.tsx), while these are NHC gtwo RISK7DAY colors (used by
+     mapStyle.ts's outlookColor()). They happen to reuse the mockup's hatch
+     hexes in quiet mode, but conflating them with --warn-ssw previously made
+     a low-risk genesis area render in storm-surge-warning purple in active
+     mode — see task-8-report.md's fix-round notes. */
+  --outlook-low: #d97b29;
+  --outlook-high: #b3402e;
   --body-text: #4a4131;
   --title: #2b241a;
   --font-serif: Georgia, "Times New Roman", serif;
@@ -48,6 +57,8 @@
   --warn-hw: #b3402e;
   --warn-ssw: #d97b29;
   --warn-tsw: #1f3a5f;
+  --outlook-low: #d97b29;
+  --outlook-high: #b3402e;
   --body-text: #4a4131;
   --title: #2b241a;
 }
@@ -69,6 +80,8 @@
   --warn-hw: #d94141;
   --warn-ssw: #b04fd6;
   --warn-tsw: #4a7fd4;
+  --outlook-low: #d97b29;
+  --outlook-high: #b3402e;
   --body-text: #d5deed;
   --title: #ffffff;
 }
