@@ -13,6 +13,7 @@ import pytest
 
 from gulfwatch import nhc, outlook
 from gulfwatch.pipeline import ADECK_URL_TEMPLATE, run
+import gulfwatch.pipeline as pipeline_module
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CURRENT_STORMS_JSON = json.loads((FIXTURES / "current_storms.json").read_text())
@@ -443,3 +444,53 @@ def test_adeck_models_and_intensity_upload_failures_labeled_separately():
     # models.geojson upload itself succeeded independently of intensity's failure.
     assert "storms/al022026/models.geojson" in store.put_calls
     assert "storms/al022026/intensity.json" not in store.put_calls
+
+
+# ---------------------------------------------------------------------------
+# AIFS graceful degradation (Task 5): gulfwatch.aifs.fetch_aifs_tracks is
+# stubbed to always return [] and never raise (see aifs.py's SPIKE
+# OUTCOME), but pipeline.py wraps the call in its own try/except regardless
+# -- this test proves that guarantee directly by monkeypatching a raising
+# fetch_aifs_tracks, independent of whether the real implementation ever
+# raises. A raising AIFS fetcher must still produce a full manifest (all
+# other storm products uploaded, mode/inGulfBox computed normally) plus one
+# "aifs" error entry -- it must never take down the run.
+# ---------------------------------------------------------------------------
+
+
+def test_aifs_failure_degrades_gracefully_and_still_produces_full_manifest(monkeypatch):
+    def raising_fetch_aifs_tracks(storm_atcf_id, fetch_impl=None):
+        raise RuntimeError("simulated BUFR decode failure")
+
+    monkeypatch.setattr(
+        pipeline_module.aifs, "fetch_aifs_tracks", raising_fetch_aifs_tracks
+    )
+
+    routes = {
+        nhc.CURRENT_STORMS_URL: FakeResponse(json_data=CURRENT_STORMS_JSON),
+        BERTHA_GIS_URL: FakeResponse(content=SAMPLE_CONE_ZIP),
+        BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
+    }
+    routes.update(_outlook_routes())
+    fetch = FakeFetch(routes)
+    store = FakeStore()
+
+    manifest = run(fetch=fetch, store=store)
+
+    assert manifest["errors"] == [
+        {"product": "aifs", "message": "simulated BUFR decode failure"}
+    ]
+
+    # The rest of the run still completed normally: full manifest entry,
+    # all five storm files uploaded, mode computed correctly.
+    assert manifest["mode"] == "active"
+    bertha = manifest["storms"][0]
+    assert bertha["id"] == "al022026"
+    assert bertha["inGulfBox"] is True
+    for path in bertha["files"].values():
+        assert path in store.put_calls
+
+    # models.geojson still holds the a-deck-derived features (OFCL) -- just
+    # with no AIFS features concatenated in, since the fetch raised.
+    models_fc = store.data["storms/al022026/models.geojson"]
+    assert {f["properties"]["model"] for f in models_fc["features"]} == {"OFCL"}

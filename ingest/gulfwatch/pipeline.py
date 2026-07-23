@@ -1,9 +1,9 @@
 """Gulf Watch ingest orchestrator: poll -> convert -> upload -> manifest.json.
 
 Ties together gulfwatch.nhc / gulfwatch.adeck / gulfwatch.shp /
-gulfwatch.outlook into one pipeline run. See shared-contracts.md for the
-exact manifest.json shape, blob paths, source URLs, error rules, and Gulf
-box this module must honor exactly.
+gulfwatch.outlook / gulfwatch.aifs into one pipeline run. See
+shared-contracts.md for the exact manifest.json shape, blob paths, source
+URLs, error rules, and Gulf box this module must honor exactly.
 
 `run(fetch=requests.get, store=blob)` is the sole public entry point; both
 `fetch` and `store` are injectable so tests can pass fake doubles (see
@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from gulfwatch import adeck, blob, nhc, outlook, shp
+from gulfwatch import adeck, aifs, blob, nhc, outlook, shp
 
 FETCH_TIMEOUT_S = 30
 RETRY_BACKOFF_S = 10
@@ -184,6 +184,14 @@ def _process_adeck(storm, paths, prev_cycle, fetch, store, errors):
     without downloading and parsing the file itself, so "did the cycle
     change" can only be answered after the fact.
 
+    Also folds in gulfwatch.aifs.fetch_aifs_tracks (ECMWF's AI-model TC
+    track, an optional product with its own independent 00z/12z cycle --
+    see aifs.py) whenever models.geojson is (re)built. AIFS is currently
+    stubbed to always return [] (see aifs.py's SPIKE OUTCOME); the
+    try/except here is what actually delivers the "AIFS never blocks a run"
+    guarantee and is exercised directly in test_pipeline.py by monkeypatching
+    a raising fetch_aifs_tracks.
+
     Returns the (possibly unchanged) cycle to persist in state.json.
     """
     url = ADECK_URL_TEMPLATE.format(stormid=storm.id)
@@ -199,11 +207,32 @@ def _process_adeck(storm, paths, prev_cycle, fetch, store, errors):
 
     new_cycle = parsed["cycle"]
     if new_cycle != prev_cycle:
+        # AIFS (ECMWF's AI model) is an optional, independently-cycled
+        # product (see aifs.py) -- concatenated onto the a-deck-derived
+        # models.geojson here rather than uploaded separately. It gets its
+        # own try/except (product "aifs", not "{storm.id}.aifs" -- see
+        # shared-contracts.md's manifest.errors example) so that ANY
+        # failure (fetch, BUFR decode, or even an import error surfacing at
+        # call time) degrades to "no AIFS features this run" without
+        # touching the a-deck models that already succeeded.
+        try:
+            aifs_features = aifs.fetch_aifs_tracks(storm.id)
+        except Exception as exc:  # noqa: BLE001 - AIFS must never block a run
+            aifs_features = []
+            errors.append({"product": "aifs", "message": str(exc)})
+
+        models_geojson = parsed["models_geojson"]
+        if aifs_features:
+            models_geojson = {
+                "type": "FeatureCollection",
+                "features": [*models_geojson["features"], *aifs_features],
+            }
+
         # models.geojson and intensity.json are two separate uploads with
         # their own failure modes -- label and isolate them independently
         # rather than blaming both on "models" if only one put fails.
         try:
-            store.put_json(paths["models"], parsed["models_geojson"])
+            store.put_json(paths["models"], models_geojson)
         except Exception as exc:
             errors.append({"product": f"{storm.id}.models", "message": str(exc)})
         try:
