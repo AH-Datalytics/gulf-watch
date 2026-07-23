@@ -1,0 +1,36 @@
+{
+  "generated": "2026-07-22T21:04:00Z",
+  "mode": "active",
+  "storms": [
+    {
+      "id": "al992026",
+      "name": "Solene",
+      "classification": "HU",
+      "intensityMph": 105,
+      "pressureMb": 967,
+      "movementDir": "NW",
+      "movementMph": 12,
+      "lat": 25.0,
+      "lon": -85.0,
+      "advisoryNum": "14",
+      "advisoryTime": "2026-07-22T21:00:00Z",
+      "nextAdvisoryTime": "2026-07-23T03:00:00Z",
+      "inGulfBox": true,
+      "modelCycle": "2026072212",
+      "files": {
+        "cone": "cone.geojson",
+        "track": "track.geojson",
+        "wwlines": "wwlines.geojson",
+        "models": "models.geojson",
+        "intensity": "intensity.json"
+      }
+    }
+  ],
+  "outlook": {
+    "geojson": "outlook.geojson",
+    "text": "outlook.json",
+    "issued": "2026-07-22T18:00:00Z"
+  },
+  "errors": [],
+  "_demo": "SIMULATED STORM — DEMO DATA. Hurricane Solene / al992026 is fictional and does not correspond to any real Atlantic system."
+}

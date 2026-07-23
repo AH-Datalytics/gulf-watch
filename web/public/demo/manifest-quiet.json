@@ -1,0 +1,12 @@
+{
+  "generated": "2026-07-22T18:05:00Z",
+  "mode": "quiet",
+  "storms": [],
+  "outlook": {
+    "geojson": "outlook.geojson",
+    "text": "outlook.json",
+    "issued": "2026-07-22T18:00:00Z"
+  },
+  "errors": [],
+  "_demo": "SIMULATED — DEMO DATA. Quiet-mode dump: no active systems, seven-day genesis outlook only."
+}

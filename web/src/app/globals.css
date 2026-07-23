@@ -1,0 +1,109 @@
+/* Design tokens for The Gulf Watch — two-mood system.
+   Every hex value below is copied verbatim from
+   docs/superpowers/specs/two-moods-v2-mockup.html (the approved mockup):
+     .quiet block  -> [data-mode="quiet"]
+     .active block -> [data-mode="active"]
+   See .superpowers/sdd/task-7-report.md for the selector -> token mapping table. */
+
+:root {
+  /* Fallback tokens (quiet, the "no active systems" default) — used for the
+     first server-rendered paint before the client sets data-mode. */
+  --bg: #f4efe3;
+  --panel: #f1ebdc;
+  --ink: #2b241a;
+  --ink-dim: #8a7a5c;
+  --accent: #1f3a5f;
+  --accent-2: #1f3a5f;
+  --rule: #d8cdb4;
+  --water: #f4efe3;
+  --land: #eae1ca;
+  --coast: #6b5d45;
+  --grid: #ddd2b8;
+  --grid-label: #b0a385;
+  --ok: #5a7d54;
+  --warn-hw: #b3402e;
+  --warn-ssw: #d97b29;
+  --warn-tsw: #1f3a5f;
+  --body-text: #4a4131;
+  --title: #2b241a;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+  --font-mono: Consolas, monospace;
+}
+
+[data-mode="quiet"] {
+  --bg: #f4efe3;
+  --panel: #f1ebdc;
+  --ink: #2b241a;
+  --ink-dim: #8a7a5c;
+  --accent: #1f3a5f;
+  --accent-2: #1f3a5f;
+  --rule: #d8cdb4;
+  --water: #f4efe3;
+  --land: #eae1ca;
+  --coast: #6b5d45;
+  --grid: #ddd2b8;
+  --grid-label: #b0a385;
+  --ok: #5a7d54;
+  --warn-hw: #b3402e;
+  --warn-ssw: #d97b29;
+  --warn-tsw: #1f3a5f;
+  --body-text: #4a4131;
+  --title: #2b241a;
+}
+
+[data-mode="active"] {
+  --bg: #0d1830;
+  --panel: #0b1424;
+  --ink: #d5deed;
+  --ink-dim: #5f7495;
+  --accent: #e9c46a;
+  --accent-2: #ff9a5c;
+  --rule: #1d3050;
+  --water: #0d1830;
+  --land: #1a2a49;
+  --coast: #33507e;
+  --grid: #14213a;
+  --grid-label: #5f7495;
+  --ok: #5a7d54;
+  --warn-hw: #d94141;
+  --warn-ssw: #b04fd6;
+  --warn-tsw: #4a7fd4;
+  --body-text: #d5deed;
+  --title: #ffffff;
+}
+
+html {
+  height: 100%;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100%;
+  color: var(--ink);
+  background: var(--bg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Tabular numerals for stats, per spec — never let digits shift width. */
+.num {
+  font-variant-numeric: tabular-nums;
+}

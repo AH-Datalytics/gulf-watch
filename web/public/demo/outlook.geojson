@@ -1,0 +1,57 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-95.5, 18.5],
+            [-93.5, 18.3],
+            [-92.0, 19.2],
+            [-92.3, 20.6],
+            [-94.2, 20.8],
+            [-95.7, 19.7],
+            [-95.5, 18.5]
+          ]
+        ]
+      },
+      "properties": {
+        "shapefile": "gtwo_areas_2026072218",
+        "BASIN": "Atlantic",
+        "AREA": "Bay of Campeche",
+        "PROB2DAY": "10%",
+        "RISK2DAY": "low",
+        "PROB7DAY": "20%",
+        "RISK7DAY": "low"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-62.0, 13.0],
+            [-59.5, 12.6],
+            [-58.0, 14.5],
+            [-59.0, 16.5],
+            [-61.5, 16.0],
+            [-62.5, 14.3],
+            [-62.0, 13.0]
+          ]
+        ]
+      },
+      "properties": {
+        "shapefile": "gtwo_areas_2026072218",
+        "BASIN": "Atlantic",
+        "AREA": "East of the Windward Islands",
+        "PROB2DAY": "20%",
+        "RISK2DAY": "low",
+        "PROB7DAY": "60%",
+        "RISK7DAY": "high"
+      }
+    }
+  ]
+}

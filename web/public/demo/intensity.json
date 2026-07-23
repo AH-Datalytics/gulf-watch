@@ -1,0 +1,137 @@
+{
+  "cycle": "2026072212",
+  "series": [
+    {
+      "model": "OFCL",
+      "label": "Official",
+      "kind": "official",
+      "points": [
+        { "tauH": 0, "mph": 105 },
+        { "tauH": 12, "mph": 110 },
+        { "tauH": 24, "mph": 105 },
+        { "tauH": 48, "mph": 95 },
+        { "tauH": 72, "mph": 50 }
+      ]
+    },
+    {
+      "model": "AVNO",
+      "label": "GFS",
+      "kind": "physics",
+      "points": [
+        { "tauH": 0, "mph": 103 },
+        { "tauH": 12, "mph": 107 },
+        { "tauH": 24, "mph": 100 },
+        { "tauH": 48, "mph": 88 },
+        { "tauH": 72, "mph": 45 }
+      ]
+    },
+    {
+      "model": "EMXI",
+      "label": "ECMWF",
+      "kind": "physics",
+      "points": [
+        { "tauH": 0, "mph": 106 },
+        { "tauH": 12, "mph": 112 },
+        { "tauH": 24, "mph": 108 },
+        { "tauH": 48, "mph": 98 },
+        { "tauH": 72, "mph": 55 }
+      ]
+    },
+    {
+      "model": "HFSA",
+      "label": "HAFS-A",
+      "kind": "physics",
+      "points": [
+        { "tauH": 0, "mph": 102 },
+        { "tauH": 12, "mph": 108 },
+        { "tauH": 24, "mph": 103 },
+        { "tauH": 48, "mph": 90 },
+        { "tauH": 72, "mph": 48 }
+      ]
+    },
+    {
+      "model": "HFSB",
+      "label": "HAFS-B",
+      "kind": "physics",
+      "points": [
+        { "tauH": 0, "mph": 104 },
+        { "tauH": 12, "mph": 109 },
+        { "tauH": 24, "mph": 104 },
+        { "tauH": 48, "mph": 92 },
+        { "tauH": 72, "mph": 50 }
+      ]
+    },
+    {
+      "model": "EGRR",
+      "label": "UKMET",
+      "kind": "physics",
+      "points": [
+        { "tauH": 0, "mph": 100 },
+        { "tauH": 12, "mph": 105 },
+        { "tauH": 24, "mph": 98 },
+        { "tauH": 48, "mph": 85 },
+        { "tauH": 72, "mph": 42 }
+      ]
+    },
+    {
+      "model": "TVCA",
+      "label": "Consensus",
+      "kind": "consensus",
+      "points": [
+        { "tauH": 0, "mph": 104 },
+        { "tauH": 12, "mph": 109 },
+        { "tauH": 24, "mph": 104 },
+        { "tauH": 48, "mph": 93 },
+        { "tauH": 72, "mph": 49 }
+      ]
+    },
+    {
+      "model": "DSHP",
+      "label": "SHIPS",
+      "kind": "physics",
+      "points": [
+        { "tauH": 0, "mph": 105 },
+        { "tauH": 12, "mph": 108 },
+        { "tauH": 24, "mph": 101 },
+        { "tauH": 48, "mph": 87 },
+        { "tauH": 72, "mph": 44 }
+      ]
+    },
+    {
+      "model": "LGEM",
+      "label": "LGEM",
+      "kind": "physics",
+      "points": [
+        { "tauH": 0, "mph": 103 },
+        { "tauH": 12, "mph": 106 },
+        { "tauH": 24, "mph": 99 },
+        { "tauH": 48, "mph": 86 },
+        { "tauH": 72, "mph": 43 }
+      ]
+    },
+    {
+      "model": "AIFS",
+      "label": "AIFS (ECMWF)",
+      "kind": "ai",
+      "points": [
+        { "tauH": 0, "mph": 106 },
+        { "tauH": 12, "mph": 111 },
+        { "tauH": 24, "mph": 106 },
+        { "tauH": 48, "mph": 96 },
+        { "tauH": 72, "mph": 52 }
+      ]
+    },
+    {
+      "model": "DMWL",
+      "label": "DeepMind WL",
+      "kind": "ai",
+      "points": [
+        { "tauH": 0, "mph": 105 },
+        { "tauH": 12, "mph": 110 },
+        { "tauH": 24, "mph": 104 },
+        { "tauH": 48, "mph": 94 },
+        { "tauH": 72, "mph": 51 }
+      ]
+    }
+  ]
+}
