@@ -39,6 +39,11 @@
   --stale: #d97b29;
   --body-text: #4a4131;
   --title: #2b241a;
+  /* Tide-gauge predicted-band fill (Gauges.tsx / Task 10). Its own token —
+     not an alias of --land/--panel — because the mockup's gauge <rect> fills
+     (#e5dcc6 quiet, #13223c active) are darker/lighter than those tokens'
+     values and don't line up with any existing one. */
+  --gauge-band: #e5dcc6;
   --font-serif: Georgia, "Times New Roman", serif;
   --font-sans: "Segoe UI", system-ui, sans-serif;
   --font-mono: Consolas, monospace;
@@ -66,6 +71,7 @@
   --stale: #d97b29;
   --body-text: #4a4131;
   --title: #2b241a;
+  --gauge-band: #e5dcc6;
 }
 
 [data-mode="active"] {
@@ -90,6 +96,7 @@
   --stale: #b3402e;
   --body-text: #d5deed;
   --title: #ffffff;
+  --gauge-band: #13223c;
 }
 
 html {
@@ -442,6 +449,48 @@ a {
 .legend-actions button:hover {
   color: var(--ink);
   border-color: var(--ink-dim);
+}
+
+/* ============ Tide gauge sparklines (Gauges.tsx) ============ */
+[data-mode="quiet"] .gauge {
+  margin-bottom: 14px;
+}
+
+[data-mode="active"] .gauge {
+  margin-bottom: 11px;
+}
+
+.gauge .name {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--body-text);
+  margin-bottom: 2px;
+}
+
+[data-mode="active"] .gauge .name {
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.gauge .name b {
+  font-weight: 600;
+}
+
+.gauge .name .val {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-mode="active"] .gauge .name .val {
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.gauge-unavailable {
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--ink-dim);
 }
 
 /* ============ Rail foot (both modes) ============ */
