@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
+from datetime import timezone
 from email.utils import parsedate_to_datetime
 
 from gulfwatch import shp
@@ -86,6 +87,10 @@ def filter_and_normalize(geojson: dict) -> dict:
     zip was read, so it's directly unit-testable with a synthetic
     FeatureCollection regardless of what any particular day's real fixture
     happens to contain.
+
+    A feature whose PROB7DAY can't be parsed to a percentage (e.g. a bare
+    non-numeric string) is dropped rather than raising -- one malformed
+    genesis area shouldn't take down the whole outlook product.
     """
     features = []
     for feature in geojson.get("features", []):
@@ -97,7 +102,13 @@ def filter_and_normalize(geojson: dict) -> dict:
             continue
 
         prob7day_raw = props.get("PROB7DAY", "")
-        risk = normalize_risk(_parse_prob7day(prob7day_raw))
+        try:
+            risk = normalize_risk(_parse_prob7day(prob7day_raw))
+        except ValueError:
+            # A single malformed/unparseable PROB7DAY (e.g. a bare "Low"
+            # with no digits) must not take down the whole outlook product
+            # -- drop just this feature and keep going. See task-3-report.md.
+            continue
 
         kept_props = {**props, "RISK7DAY": risk}
         features.append({**feature, "properties": kept_props})
@@ -106,7 +117,11 @@ def filter_and_normalize(geojson: dict) -> dict:
 
 
 def _iso_z(dt) -> str:
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    """Format an (aware) datetime as ISO 8601 UTC ("...Z"), converting to
+    UTC first. pubDate values carry their own offset (NHC's own feed uses
+    GMT, but RFC 2822 allows any offset, e.g. "-0400"), so this must not
+    just stamp "Z" onto the original wall-clock time."""
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def parse_outlook_text(rss_xml: str) -> dict:

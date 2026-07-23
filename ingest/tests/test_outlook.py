@@ -288,3 +288,79 @@ def test_parse_outlook_text_raises_when_two_item_missing():
 </channel></rss>"""
     with pytest.raises(ValueError):
         parse_outlook_text(rss)
+
+
+def test_parse_outlook_text_strips_a_non_br_tag():
+    # _ANY_TAG_RE must strip HTML tags other than <br> too (e.g. a stray
+    # <b> NHC or an upstream RSS proxy might emit), not just <br/>.
+    rss = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+<item>
+<title>Atlantic Tropical Weather Outlook</title>
+<description>plain &lt;b&gt;bold&lt;/b&gt; text</description>
+<pubDate>Wed, 22 Jul 2026 23:06:25 GMT</pubDate>
+</item>
+</channel></rss>"""
+    parsed = parse_outlook_text(rss)
+    assert parsed["text"] == "plain bold text"
+    assert "<" not in parsed["text"] and ">" not in parsed["text"]
+
+
+def test_parse_outlook_text_converts_non_gmt_pubdate_to_utc():
+    # Today's real fixture happens to use GMT (offset +0000), which masks a
+    # bug where the ISO conversion appended "Z" without first converting to
+    # UTC. -0400 (EDT, NHC Miami's own local zone) makes the bug visible:
+    # 18:06:25 -0400 is 22:06:25Z, not 18:06:25Z.
+    rss = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+<item>
+<title>Atlantic Tropical Weather Outlook</title>
+<description>text</description>
+<pubDate>Wed, 22 Jul 2026 18:06:25 -0400</pubDate>
+</item>
+</channel></rss>"""
+    parsed = parse_outlook_text(rss)
+    assert parsed["issued"] == "2026-07-22T22:06:25Z"
+
+
+# ---------------------------------------------------------------------------
+# Malformed PROB7DAY handling
+# ---------------------------------------------------------------------------
+
+
+def test_filter_and_normalize_skips_feature_with_unparseable_prob7day():
+    # A bare "Low"/"N/A"-style PROB7DAY (no digits) must not crash the whole
+    # outlook product over one malformed area -- the feature is dropped and
+    # the rest of the FeatureCollection still comes through. See
+    # task-3-report.md for the reasoning.
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+                "properties": {
+                    "shapefile": "gtwo_points_202607220600",
+                    "BASIN": "Atlantic",
+                    "AREA": "1",
+                    "PROB7DAY": "Low",  # unparseable -- no digits
+                    "RISK7DAY": "Low",
+                },
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [1, 1]},
+                "properties": {
+                    "shapefile": "gtwo_points_202607220600",
+                    "BASIN": "Atlantic",
+                    "AREA": "2",
+                    "PROB7DAY": "30%",
+                    "RISK7DAY": "Low",
+                },
+            },
+        ],
+    }
+    result = filter_and_normalize(geojson)
+    kept_areas = {f["properties"]["AREA"] for f in result["features"]}
+    assert kept_areas == {"2"}
+    assert result["features"][0]["properties"]["RISK7DAY"] == "low"
