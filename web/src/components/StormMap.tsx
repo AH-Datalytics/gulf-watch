@@ -52,6 +52,12 @@ export interface StormMapProps {
   mode: Mode;
   visibleModels: Set<string>;
   showRadar: boolean;
+  /** Toggles `showRadar`. The RADAR button lives here (rendered inside
+   *  .gw-map-frame, the map's own box) rather than in page.tsx as a sibling
+   *  of the intensity panel — see globals.css's .radar-toggle comment for
+   *  why that placement previously let the button intrude into the panel
+   *  in active mode. */
+  onToggleRadar: () => void;
   /** Every non-selected manifest storm (B2, final review) — drawn as a cone
    *  in the same styling as the selected storm's, plus a small monospace
    *  name label at its current position. */
@@ -104,7 +110,7 @@ function CompassRose() {
 
 const MAP_PLATE_TEXT = "Gulf of Mexico · Tropical outlook chart · after the household tracking charts of New Orleans";
 
-export default function StormMap({ geo, mode, visibleModels, showRadar, otherStorms }: StormMapProps) {
+export default function StormMap({ geo, mode, visibleModels, showRadar, onToggleRadar, otherStorms }: StormMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -271,7 +277,7 @@ export default function StormMap({ geo, mode, visibleModels, showRadar, otherSto
   }, [showRadar, loaded]);
 
   return (
-    <>
+    <div className="gw-map-frame">
       <div ref={containerRef} className="gw-map" />
       {mode === "quiet" && (
         <>
@@ -279,6 +285,14 @@ export default function StormMap({ geo, mode, visibleModels, showRadar, otherSto
           <div className="plate">{MAP_PLATE_TEXT}</div>
         </>
       )}
-    </>
+      <button
+        type="button"
+        className={`radar-toggle${showRadar ? " on" : ""}`}
+        aria-pressed={showRadar}
+        onClick={onToggleRadar}
+      >
+        RADAR {showRadar ? "ON" : "OFF"}
+      </button>
+    </div>
   );
 }

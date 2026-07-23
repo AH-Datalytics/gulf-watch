@@ -69,17 +69,10 @@ export default function Home() {
             mode={dashboard.mode}
             visibleModels={visibleModels}
             showRadar={showRadar}
+            onToggleRadar={() => setShowRadar((v) => !v)}
             otherStorms={dashboard.otherStorms}
           />
           {dashboard.demo && <div className="simtag">{dashboard.demoTag}</div>}
-          <button
-            type="button"
-            className={`radar-toggle${showRadar ? " on" : ""}`}
-            aria-pressed={showRadar}
-            onClick={() => setShowRadar((v) => !v)}
-          >
-            RADAR {showRadar ? "ON" : "OFF"}
-          </button>
           {dashboard.mode === "active" && dashboard.storm && dashboard.intensity && (
             <IntensityPanel
               intensity={dashboard.intensity}

@@ -204,7 +204,16 @@ a {
   position: relative;
 }
 
-.gw-map {
+/* .gw-map-frame is the map's own box — exactly the space StormMap occupies,
+   NOT including the intensity panel below it (.ipanel is mapcol's OTHER flex
+   child, a sibling of this frame, not a descendant). Overlays that should
+   anchor to the map itself (radar toggle, quiet-mode compass rose + plate
+   caption) are rendered as children of this frame so their `position:
+   absolute` offsets are relative to the map's box specifically — anchoring
+   them to .mapcol instead (the previous approach) put them in .mapcol's full
+   height, including the panel, and made a bottom-right overlay intrude into
+   the panel's bottom-right corner in active mode (see StormMap.tsx). */
+.gw-map-frame {
   flex: 1;
   position: relative;
   /* A small floor rather than the old 480px: with .app-shell now a real
@@ -213,6 +222,12 @@ a {
      on short-but-valid desktop windows once the 180px intensity panel is
      added back in. */
   min-height: 240px;
+}
+
+/* The actual MapLibre container — fills its .gw-map-frame wrapper exactly. */
+.gw-map {
+  width: 100%;
+  height: 100%;
 }
 
 /* ============ Mobile: rail stacks below the map, document scrolls normally ============ */
@@ -242,7 +257,7 @@ a {
     border-bottom: 1px solid var(--rule);
   }
 
-  .gw-map {
+  .gw-map-frame {
     flex: none;
     height: 55vh;
     min-height: 0;
@@ -669,7 +684,14 @@ a {
   z-index: 1;
 }
 
-/* ============ Radar toggle (B3, final review) — overlaid bottom-right on the map, both modes ============ */
+/* ============ Radar toggle (B3, final review) — overlaid bottom-right on the map, both modes ============
+   Rendered inside StormMap.tsx as a child of .gw-map-frame (the map's own
+   box), NOT as a sibling of the intensity panel in .mapcol — anchoring to
+   .mapcol previously put this at the bottom of the WHOLE column, which in
+   active mode (where .ipanel occupies the column's bottom 180px) rendered
+   the button inside the panel, overlapping its chart near the last x-tick.
+   Anchoring to .gw-map-frame keeps it pinned to the map itself in both
+   modes, clearing the quiet-mode plate caption exactly as before. */
 .radar-toggle {
   position: absolute;
   right: 16px;
