@@ -43,12 +43,20 @@ def _decode_coord(raw: str) -> float:
 def parse_adeck(text: str) -> dict:
     """Parse ATCF a-deck text into the models.geojson + intensity.json shapes.
 
-    Uses only the latest cycle (YYYYMMDDHH) present in the file. Within that
-    cycle, per (tech, tau) duplicate rows (one per wind-radii threshold) are
-    deduped, keeping the first. Rows with lat or lon of 0 are dropped
-    entirely (junk/null position). Rows with a missing vmax field are also
-    dropped entirely; rows with a present but non-positive vmax keep their
-    track point but are excluded from the intensity series.
+    Each whitelisted model is filtered independently to its own latest cycle
+    (YYYYMMDDHH) present in the file -- NOT a single file-wide latest cycle.
+    Models run on different schedules (e.g. GFS/AVNO every 6h vs.
+    ECMWF/EMXI only at 00z/12z), so a global-latest filter would silently
+    drop a model entirely whenever some other model has a newer run in the
+    file. The top-level "cycle" (and intensity.json's "cycle") reflect the
+    newest cycle across all whitelisted models.
+
+    Within each model's own latest cycle, per (tech, tau) duplicate rows
+    (one per wind-radii threshold) are deduped, keeping the first. Rows with
+    lat or lon of 0 are dropped entirely (junk/null position). Rows with a
+    missing vmax field are also dropped entirely; rows with a present but
+    non-positive vmax keep their track point but are excluded from the
+    intensity series.
 
     Returns:
         {"models_geojson": <FeatureCollection dict>,
@@ -56,7 +64,6 @@ def parse_adeck(text: str) -> dict:
          "cycle": "YYYYMMDDHH"}
     """
     rows = []
-    latest_cycle = None
     for line in text.splitlines():
         line = line.strip()
         if not line:
@@ -64,10 +71,20 @@ def parse_adeck(text: str) -> dict:
         fields = [f.strip() for f in line.split(",")]
         if len(fields) < 9:
             continue
-        cycle = fields[2]
-        if latest_cycle is None or cycle > latest_cycle:
-            latest_cycle = cycle
         rows.append(fields)
+
+    # Each whitelisted model's own latest cycle, independent of other models.
+    latest_cycle_by_model: dict[str, str] = {}
+    for fields in rows:
+        tech = fields[4].upper()
+        if tech not in MODELS:
+            continue
+        cycle = fields[2]
+        if tech not in latest_cycle_by_model or cycle > latest_cycle_by_model[tech]:
+            latest_cycle_by_model[tech] = cycle
+
+    # Top-level cycle: newest cycle across all whitelisted models present.
+    newest_cycle = max(latest_cycle_by_model.values()) if latest_cycle_by_model else None
 
     # tech -> {tau: [lon, lat]}
     track_points: dict[str, dict[int, list]] = {}
@@ -75,11 +92,10 @@ def parse_adeck(text: str) -> dict:
     intensity_points: dict[str, dict[int, int]] = {}
 
     for fields in rows:
-        if fields[2] != latest_cycle:
-            continue
-
         tech = fields[4].upper()
         if tech not in MODELS:
+            continue
+        if fields[2] != latest_cycle_by_model[tech]:
             continue
 
         tau_str, lat_str, lon_str, vmax_str = fields[5], fields[6], fields[7], fields[8]
@@ -122,7 +138,7 @@ def parse_adeck(text: str) -> dict:
                     "model": tech,
                     "label": label,
                     "kind": kind,
-                    "cycle": latest_cycle,
+                    "cycle": latest_cycle_by_model[tech],
                 },
             })
 
@@ -138,6 +154,6 @@ def parse_adeck(text: str) -> dict:
 
     return {
         "models_geojson": {"type": "FeatureCollection", "features": features},
-        "intensity": {"cycle": latest_cycle, "series": series},
-        "cycle": latest_cycle,
+        "intensity": {"cycle": newest_cycle, "series": series},
+        "cycle": newest_cycle,
     }
