@@ -1,20 +1,20 @@
 "use client";
 
 import useSWR from "swr";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { BLOB_BASE, STALE_HOURS } from "./config";
 import type { Manifest, StormEntry, IntensitySeries, Mode } from "./types";
 
 const DEMO_BASE = "/demo";
 
-// Design note: we read the `?demo=` flag via window.location.search in a
-// client effect rather than next/navigation's useSearchParams. useSearchParams
-// is a Client Component hook that requires a <Suspense> boundary around
-// anything that calls it (Next 16 App Router) to avoid a full-route CSR
-// bailout on prerendered routes.
+// Design note: we read the `?demo=` flag via window.location.search rather
+// than next/navigation's useSearchParams. useSearchParams is a Client
+// Component hook that requires a <Suspense> boundary around anything that
+// calls it (Next 16 App Router) to avoid a full-route CSR bailout on
+// prerendered routes.
 //
 // A synchronous `typeof window !== "undefined" ? window.location.search : ""`
-// read during render is NOT safe here even though it looks SSR-guarded: React
+// read during render is NOT safe even though it looks SSR-guarded: React
 // hydration requires the client's *first* render to match the server's HTML
 // exactly, and window IS already defined during that first client render (it
 // only differs from the server env, not across the client's own
@@ -22,17 +22,27 @@ const DEMO_BASE = "/demo";
 // and `true` on the client in the very same hydration pass, which is exactly
 // the mismatch React's hydration check exists to catch (confirmed via a
 // Playwright hydration-error repro against ?demo=1 while building this).
-// Deferring the read into useEffect means the first client render (during
-// hydration) still sees demo=null, matching the server; the effect then
-// corrects it a tick later, which React tolerates as a normal post-mount
-// update. Trade-off: on ?demo=1/?demo=quiet there's a brief instant where
-// this fetches the live manifest before correcting to the demo fixture.
+//
+// A useEffect+useState pair (the first fix) avoids the hydration mismatch
+// (first client render still sees demo=null, matching the server; the effect
+// corrects it a tick later) but trips
+// react-hooks/set-state-in-effect (calling a setState setter synchronously
+// in an effect body). useSyncExternalStore is the correct tool for exactly
+// this "read a value from an external system that doesn't change during this
+// component's lifetime, with a real SSR snapshot" case: it returns the
+// server snapshot (null) during hydration -- matching the server's render,
+// same as the effect version -- but does it by giving React its own
+// external-store-read seam instead of a manual setState-in-effect, which is
+// both hydration-safe and lint-clean. The query string can't change without a
+// full navigation/reload, so the subscribe callback never needs to fire; we
+// still return a real (no-op) unsubscribe function rather than skipping
+// useSyncExternalStore altogether, since that's the documented contract.
 function useDemoParam(): string | null {
-  const [demo, setDemo] = useState<string | null>(null);
-  useEffect(() => {
-    setDemo(new URLSearchParams(window.location.search).get("demo"));
-  }, []);
-  return demo;
+  return useSyncExternalStore(
+    () => () => {}, // never re-subscribes; query string can't change without reload
+    () => new URLSearchParams(window.location.search).get("demo"), // client snapshot
+    () => null // server snapshot
+  );
 }
 
 const jsonFetcher = async <T,>(url: string): Promise<T> => {
