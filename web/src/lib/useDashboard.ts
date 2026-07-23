@@ -53,10 +53,34 @@ const jsonFetcher = async <T,>(url: string): Promise<T> => {
   return res.json() as Promise<T>;
 };
 
-function manifestUrl(demoParam: string | null): string {
+/**
+ * Manifest URL for a given `?demo=` value. `demo=bertha` fetches a real
+ * captured advisory-016 snapshot (web/public/demo/bertha/manifest.json) whose
+ * `storms[0].files` values are pre-rewritten to `bertha/<name>.geojson`
+ * (relative to `DEMO_BASE`, exactly like the Solene fixtures' flat
+ * `<name>.geojson` values in web/public/demo/manifest.json) — so no base-URL
+ * branching is needed elsewhere: `base` in {@link useDashboard} stays
+ * `DEMO_BASE` for every demo variant, and the manifest's own `files` map does
+ * all the path resolution.
+ */
+export function manifestUrl(demoParam: string | null): string {
   if (demoParam === "quiet") return `${DEMO_BASE}/manifest-quiet.json`;
+  if (demoParam === "bertha") return `${DEMO_BASE}/bertha/manifest.json`;
   if (demoParam !== null) return `${DEMO_BASE}/manifest.json`;
   return `${BLOB_BASE}/manifest.json`;
+}
+
+/**
+ * Map-corner demo tag text for a given `?demo=` value — `null` when not in
+ * demo mode at all. `demo=bertha` is a real archived advisory (not a
+ * fictional mockup storm), so its tag reads "ARCHIVED DATA" rather than
+ * "SIMULATED"; every other demo variant (`1`, `quiet`, or any other value)
+ * keeps the original simulated-storm wording unchanged.
+ */
+export function demoTag(demoParam: string | null): string | null {
+  if (demoParam === null) return null;
+  if (demoParam === "bertha") return "ARCHIVED DATA — TS BERTHA · ADV 016 · JUL 23 2026";
+  return "SIMULATED STORM — DEMO DATA";
 }
 
 /** Strongest inGulfBox storm, else strongest storm overall, else null. */
@@ -80,6 +104,10 @@ export interface DashboardData {
   manifest: Manifest | null;
   mode: Mode;
   demo: boolean;
+  /** Map-corner tag text when `demo` is true (e.g. "SIMULATED STORM — DEMO DATA"
+   *  or, for `?demo=bertha`, "ARCHIVED DATA — TS BERTHA · ADV 016 · JUL 23 2026");
+   *  null otherwise. See {@link demoTag}. */
+  demoTag: string | null;
   storm: StormEntry | null;
   geo: {
     cone?: GeoJSON.FeatureCollection;
@@ -143,6 +171,7 @@ export function useDashboard(): DashboardData {
     manifest: manifest ?? null,
     mode,
     demo,
+    demoTag: demoTag(demoParam),
     storm,
     geo: {
       cone,

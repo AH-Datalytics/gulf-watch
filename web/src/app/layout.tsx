@@ -3,9 +3,9 @@ import "./globals.css";
 import { ModeGate } from "./ModeGate";
 
 export const metadata: Metadata = {
-  title: "The Gulf Watch — a New Orleans tropical weather desk",
+  title: "The Gulf Watch — New Orleans Tropical Weather",
   description:
-    "AH Datalytics tropical outlook desk for New Orleans. Not an official forecast — for decisions, consult the National Hurricane Center and NWS New Orleans/Baton Rouge.",
+    "A New Orleans tropical weather desk from AH Datalytics: live storm tracking, watches and warnings for the metro parishes, tide gauges, and a seven-day genesis outlook. Not an official forecast — for decisions, consult the National Hurricane Center and NWS New Orleans/Baton Rouge.",
 };
 
 export default function RootLayout({

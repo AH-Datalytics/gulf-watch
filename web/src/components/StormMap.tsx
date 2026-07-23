@@ -65,6 +65,39 @@ function clearMarkers(markers: Marker[]): void {
   markers.length = 0;
 }
 
+/**
+ * Quiet-mode-only chart furniture — a compass rose + italic map plate,
+ * matching docs/superpowers/specs/two-moods-v2-mockup.html's quiet-mode map
+ * exactly (its <g transform="translate(838,60)"> compass group and .plate
+ * caption). Plain HTML/SVG overlays (not MapLibre layers): they're static
+ * decoration, not data-driven, so they don't need a source/layer round-trip.
+ */
+function CompassRose() {
+  return (
+    <svg className="gw-compass" viewBox="0 0 60 60" aria-hidden="true">
+      <g transform="translate(30,32)" stroke="var(--ink-dim)" fill="none">
+        <circle r="22" />
+        <path d="M0,-22 L4,-6 L0,0 L-4,-6 Z" fill="var(--ink-dim)" stroke="none" />
+        <line x1="0" y1="10" x2="0" y2="22" />
+        <line x1="-22" y1="0" x2="-10" y2="0" />
+        <line x1="10" y1="0" x2="22" y2="0" />
+        <text
+          y="-28"
+          textAnchor="middle"
+          fontFamily="var(--font-serif)"
+          fontSize="10"
+          fill="var(--ink-dim)"
+          stroke="none"
+        >
+          N
+        </text>
+      </g>
+    </svg>
+  );
+}
+
+const MAP_PLATE_TEXT = "Gulf of Mexico · Tropical outlook chart · after the household tracking charts of New Orleans";
+
 export default function StormMap({ geo, mode, visibleModels, showRadar }: StormMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -210,5 +243,15 @@ export default function StormMap({ geo, mode, visibleModels, showRadar }: StormM
     map.setLayoutProperty(LAYER_IDS.radar, "visibility", showRadar ? "visible" : "none");
   }, [showRadar, loaded]);
 
-  return <div ref={containerRef} className="gw-map" />;
+  return (
+    <>
+      <div ref={containerRef} className="gw-map" />
+      {mode === "quiet" && (
+        <>
+          <CompassRose />
+          <div className="plate">{MAP_PLATE_TEXT}</div>
+        </>
+      )}
+    </>
+  );
 }

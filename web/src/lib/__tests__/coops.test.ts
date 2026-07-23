@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { deriveGaugeState, toSeries, type CoopsPredictionsResponse, type CoopsWaterLevelResponse } from "../coops";
+import {
+  deriveGaugeState,
+  isRisingTrend,
+  toSeries,
+  yDomain,
+  type CoopsPredictionsResponse,
+  type CoopsWaterLevelResponse,
+  type GaugePoint,
+} from "../coops";
 
 import newCanalWater from "./fixtures/water_8761927_new_canal.json";
 import newCanalPred from "./fixtures/pred_8761927_new_canal.json";
@@ -108,7 +116,7 @@ describe("toSeries — edge cases", () => {
     expect(series.latest).toBeCloseTo(1.8, 3);
   });
 
-  it("a CO-OPS error envelope on predictions is treated as no predictions", () => {
+  it("predJson without a 'predictions' key (e.g. a CO-OPS error envelope) behaves like no predictions", () => {
     const water: CoopsWaterLevelResponse = {
       data: [{ t: "2026-07-23 10:00", v: "1.5" }],
     };
@@ -139,5 +147,82 @@ describe("deriveGaugeState", () => {
 
   it("derives series from data with no error", () => {
     expect(deriveGaugeState(sample, undefined)).toEqual({ series: sample, unavailable: false });
+  });
+});
+
+describe("isRisingTrend", () => {
+  // Extracted from Gauges.tsx (Task 12 review carry-over) — a rise of
+  // *exactly* +0.15 ft over the trailing 6h is NOT rising (strictly greater
+  // than the threshold, not >=); a rise just over it is.
+  function points(baseObs: number, lastObs: number): GaugePoint[] {
+    return [
+      { t: "2026-07-23 04:00", obs: baseObs },
+      { t: "2026-07-23 10:00", obs: lastObs },
+    ];
+  }
+
+  it("is false at exactly the +0.15 ft/6h boundary", () => {
+    expect(isRisingTrend(points(1.0, 1.15))).toBe(false);
+  });
+
+  it("is true just above the +0.15 ft/6h boundary", () => {
+    expect(isRisingTrend(points(1.0, 1.1501))).toBe(true);
+  });
+
+  it("is false just below the +0.15 ft/6h boundary", () => {
+    expect(isRisingTrend(points(1.0, 1.1499))).toBe(false);
+  });
+
+  it("is false for a falling or flat series", () => {
+    expect(isRisingTrend(points(1.0, 0.9))).toBe(false);
+    expect(isRisingTrend(points(1.0, 1.0))).toBe(false);
+  });
+
+  it("is false with fewer than 2 points", () => {
+    expect(isRisingTrend([])).toBe(false);
+    expect(isRisingTrend([{ t: "2026-07-23 10:00", obs: 5 }])).toBe(false);
+  });
+});
+
+describe("yDomain", () => {
+  it("returns [0, 1] for an empty series (never NaN/inverted)", () => {
+    const [min, max] = yDomain([]);
+    expect(Number.isFinite(min)).toBe(true);
+    expect(Number.isFinite(max)).toBe(true);
+    expect(min).toBeLessThan(max);
+    expect([min, max]).toEqual([0, 1]);
+  });
+
+  it("pads symmetrically for a flat series instead of a zero-width domain", () => {
+    const flat: GaugePoint[] = [
+      { t: "2026-07-23 10:00", obs: 2 },
+      { t: "2026-07-23 10:06", obs: 2 },
+    ];
+    const [min, max] = yDomain(flat);
+    expect(Number.isFinite(min)).toBe(true);
+    expect(Number.isFinite(max)).toBe(true);
+    expect(min).toBeLessThan(max);
+    expect([min, max]).toEqual([1.5, 2.5]);
+  });
+
+  it("pads a normal varying series proportionally and includes pred values", () => {
+    const series: GaugePoint[] = [
+      { t: "2026-07-23 10:00", obs: 1.0, pred: 0.5 },
+      { t: "2026-07-23 10:06", obs: 2.0, pred: 2.5 },
+    ];
+    const [min, max] = yDomain(series);
+    expect(Number.isFinite(min)).toBe(true);
+    expect(Number.isFinite(max)).toBe(true);
+    expect(min).toBeLessThan(max);
+    // Raw range is [0.5, 2.5]; 15% padding of the 2.0 span is 0.3.
+    expect(min).toBeCloseTo(0.2, 5);
+    expect(max).toBeCloseTo(2.8, 5);
+  });
+
+  it("never inverts or produces NaN even for a single-point series", () => {
+    const [min, max] = yDomain([{ t: "2026-07-23 10:00", obs: 3 }]);
+    expect(Number.isFinite(min)).toBe(true);
+    expect(Number.isFinite(max)).toBe(true);
+    expect(min).toBeLessThan(max);
   });
 });

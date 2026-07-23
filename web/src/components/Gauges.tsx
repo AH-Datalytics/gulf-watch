@@ -7,50 +7,12 @@ import {
   fetchGauge,
   GAUGE_STATIONS,
   deriveGaugeState,
-  type GaugePoint,
+  isRisingTrend,
+  yDomain,
   type GaugeSeries,
 } from "@/lib/coops";
 
 const REFRESH_MS = 6 * 60 * 1000;
-// "Rising" arrow threshold per the brief: last-6h trend > +0.15 ft, active
-// mode only (mirrors the mockup's "+3.1 ft ↑").
-const TREND_WINDOW_MS = 6 * 3600 * 1000;
-const TREND_THRESHOLD_FT = 0.15;
-
-function timeMs(t: string): number {
-  return new Date(t.replace(" ", "T")).getTime();
-}
-
-/** True when the observed level has risen more than TREND_THRESHOLD_FT over the trailing 6h window. */
-function isRisingTrend(points: GaugePoint[]): boolean {
-  if (points.length < 2) return false;
-  const last = points[points.length - 1];
-  const cutoff = timeMs(last.t) - TREND_WINDOW_MS;
-  const baseline = points.find((p) => timeMs(p.t) >= cutoff) ?? points[0];
-  return last.obs - baseline.obs > TREND_THRESHOLD_FT;
-}
-
-/** Padded [min, max] domain covering both observed and predicted values — never inverted, never NaN, even for flat or empty series. */
-function yDomain(points: GaugePoint[]): [number, number] {
-  if (points.length === 0) return [0, 1];
-
-  let min = Infinity;
-  let max = -Infinity;
-  for (const p of points) {
-    min = Math.min(min, p.obs, p.pred ?? p.obs);
-    max = Math.max(max, p.obs, p.pred ?? p.obs);
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
-
-  if (min === max) {
-    // Flat series (or a single point) — pad symmetrically so the domain
-    // isn't zero-width (which Recharts would otherwise render as a
-    // collapsed/invisible line).
-    return [min - 0.5, max + 0.5];
-  }
-  const pad = (max - min) * 0.15;
-  return [min - pad, max + pad];
-}
 
 function formatDeparture(departure: number | null, rising: boolean): string {
   if (departure === null) return "—";

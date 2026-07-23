@@ -54,7 +54,7 @@ export function Alerts({ mode }: AlertsProps) {
         rows.map((row) => (
           <div key={row.key} className="alert" style={{ borderLeftColor: row.color }}>
             <b>{row.event}</b>
-            <span>{row.areaDesc}</span>
+            <span title={row.areaDesc}>{row.areaDesc}</span>
           </div>
         ))
       )}

@@ -183,6 +183,44 @@ export async function fetchGauge(stationId: string): Promise<GaugeSeries> {
   return toSeries(waterJson, predJson);
 }
 
+// "Rising" arrow threshold per the brief: last-6h trend > +0.15 ft, active
+// mode only (mirrors the mockup's "+3.1 ft ↑"). Extracted from Gauges.tsx
+// (Task 10) into this module (Task 12 review carry-over) so the boundary
+// condition is unit-testable without rendering the component.
+const TREND_WINDOW_MS = 6 * 3600 * 1000;
+const TREND_THRESHOLD_FT = 0.15;
+
+/** True when the observed level has risen more than TREND_THRESHOLD_FT over the trailing 6h window. */
+export function isRisingTrend(points: GaugePoint[]): boolean {
+  if (points.length < 2) return false;
+  const last = points[points.length - 1];
+  const cutoff = parseCoopsTime(last.t) - TREND_WINDOW_MS;
+  const baseline = points.find((p) => parseCoopsTime(p.t) >= cutoff) ?? points[0];
+  return last.obs - baseline.obs > TREND_THRESHOLD_FT;
+}
+
+/** Padded [min, max] domain covering both observed and predicted values — never inverted, never NaN, even for flat or empty series. */
+export function yDomain(points: GaugePoint[]): [number, number] {
+  if (points.length === 0) return [0, 1];
+
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of points) {
+    min = Math.min(min, p.obs, p.pred ?? p.obs);
+    max = Math.max(max, p.obs, p.pred ?? p.obs);
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
+
+  if (min === max) {
+    // Flat series (or a single point) — pad symmetrically so the domain
+    // isn't zero-width (which Recharts would otherwise render as a
+    // collapsed/invisible line).
+    return [min - 0.5, max + 0.5];
+  }
+  const pad = (max - min) * 0.15;
+  return [min - pad, max + pad];
+}
+
 export interface GaugeState {
   series: GaugeSeries | null;
   unavailable: boolean;

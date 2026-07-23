@@ -70,7 +70,7 @@ export default function Home() {
             visibleModels={visibleModels}
             showRadar={showRadar}
           />
-          {dashboard.demo && <div className="simtag">SIMULATED STORM — DEMO DATA</div>}
+          {dashboard.demo && <div className="simtag">{dashboard.demoTag}</div>}
           {dashboard.mode === "active" && dashboard.storm && dashboard.intensity && (
             <IntensityPanel
               intensity={dashboard.intensity}
