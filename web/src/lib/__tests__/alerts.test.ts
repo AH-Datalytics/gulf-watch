@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterMetroAlerts, type NWSAlertFeature } from "../alerts";
+import { deriveAlertsState, filterMetroAlerts, type NWSAlertFeature } from "../alerts";
 
 const orleansHurricaneWarning: NWSAlertFeature = {
   properties: {
@@ -88,5 +88,41 @@ describe("filterMetroAlerts", () => {
 
   it("returns an empty array for no features", () => {
     expect(filterMetroAlerts([])).toEqual([]);
+  });
+});
+
+describe("deriveAlertsState", () => {
+  it("is unavailable when there's an error and no data has ever loaded", () => {
+    const state = deriveAlertsState(undefined, new Error("fetch failed"));
+    expect(state).toEqual({ rows: [], unavailable: true });
+  });
+
+  it("is NOT unavailable while the initial request is simply still in flight (no error yet)", () => {
+    const state = deriveAlertsState(undefined, undefined);
+    expect(state).toEqual({ rows: [], unavailable: false });
+  });
+
+  it("prefers stale cached data over a transient revalidation error — NOT unavailable", () => {
+    // SWR's actual behavior: `data` stays as the last successful response
+    // while `error` is also set, when a background revalidation fails.
+    const state = deriveAlertsState({ features: [orleansHurricaneWarning] }, new Error("revalidation failed"));
+    expect(state.unavailable).toBe(false);
+    expect(state.rows).toHaveLength(1);
+    expect(state.rows[0].event).toBe("Hurricane Warning");
+  });
+
+  it("derives rows from data with no error", () => {
+    const state = deriveAlertsState({ features: [orleansHurricaneWarning, nonMetroParishAlert] }, undefined);
+    expect(state).toEqual({
+      rows: [
+        {
+          key: "Hurricane Warning|Orleans; Jefferson",
+          event: "Hurricane Warning",
+          areaDesc: "Orleans; Jefferson",
+          color: "#d94141",
+        },
+      ],
+      unavailable: false,
+    });
   });
 });

@@ -77,3 +77,28 @@ export const alertsFetcher = async (url: string): Promise<NWSAlertsResponse> => 
   }
   return res.json() as Promise<NWSAlertsResponse>;
 };
+
+export interface AlertsState {
+  rows: AlertRow[];
+  /** True only when the feed has never successfully loaded and is currently
+   *  erroring — i.e. there's no data at all to fall back on. A transient
+   *  revalidation error with stale-but-present cached data is NOT
+   *  "unavailable": SWR keeps the last good `data`, and showing that instead
+   *  of silently rendering "all clear" (or, worse, just letting it look
+   *  identical to genuinely having no alerts) is exactly the point. */
+  unavailable: boolean;
+}
+
+/**
+ * Pure derivation of {@link AlertsState} from SWR's `data`/`error`, so the
+ * "feed is down" case is unit-testable without mocking fetch/SWR. `data`
+ * being defined always wins over `error` (SWR only sets `error` alongside
+ * still-present prior `data` when a *revalidation* fails, not the initial
+ * load).
+ */
+export function deriveAlertsState(data: NWSAlertsResponse | undefined, error: unknown): AlertsState {
+  if (data === undefined) {
+    return { rows: [], unavailable: Boolean(error) };
+  }
+  return { rows: filterMetroAlerts(data.features), unavailable: false };
+}

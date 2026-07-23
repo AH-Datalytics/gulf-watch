@@ -9,6 +9,7 @@ import {
   applyModeColors,
   buildGraticule,
   buildInitialStyle,
+  excludeOfficialModel,
   INITIAL_BOUNDS,
   LAYER_IDS,
   NOLA_LNGLAT,
@@ -194,7 +195,7 @@ export default function StormMap({ geo, mode, visibleModels, showRadar }: StormM
     const map = mapRef.current;
     if (!map || !loaded) return;
     const src = map.getSource(SOURCE_IDS.models) as GeoJSONSource | undefined;
-    src?.setData(withColor(geo.models, modelColor));
+    src?.setData(withColor(excludeOfficialModel(geo.models), modelColor));
 
     const modelList = Array.from(visibleModels);
     const inVisible: FilterSpecification = ["in", ["get", "model"], ["literal", modelList]];

@@ -137,6 +137,26 @@ export function withColor<T extends GeoJSON.FeatureCollection>(
   };
 }
 
+/**
+ * Strips `kind === "official"` features from a models FeatureCollection
+ * before it's drawn as spaghetti. The official NHC track already has its own
+ * always-on white 2.2px line + circle points, drawn from track.geojson (see
+ * LAYER_IDS.trackLine/trackPoints) — plotting OFCL a second time as
+ * toggleable spaghetti would duplicate that line and, worse, make the
+ * official track vanish entirely if a user happened to uncheck OFCL. OFCL is
+ * therefore not toggleable at all: it's removed from the spaghetti data here,
+ * before visibleModels filtering ever runs.
+ */
+export function excludeOfficialModel(
+  fc: GeoJSON.FeatureCollection | undefined | null
+): GeoJSON.FeatureCollection {
+  if (!fc) return { type: "FeatureCollection", features: [] };
+  return {
+    type: "FeatureCollection",
+    features: fc.features.filter((f) => f.properties?.kind !== "official"),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Graticule (2-degree lat/lon grid, generated — no basemap tiles involved)
 // ---------------------------------------------------------------------------

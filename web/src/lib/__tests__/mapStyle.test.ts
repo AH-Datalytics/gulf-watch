@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGraticule,
+  excludeOfficialModel,
   outlookAreaLabel,
   outlookColor,
   polygonLabelPoint,
@@ -190,5 +191,43 @@ describe("withColor", () => {
   it("returns an empty FeatureCollection for null/undefined input", () => {
     expect(withColor(undefined, () => "#fff").features).toHaveLength(0);
     expect(withColor(null, () => "#fff").features).toHaveLength(0);
+  });
+});
+
+describe("excludeOfficialModel", () => {
+  // Regression pin: OFCL/kind "official" must never reach the spaghetti
+  // layers — the always-on white track (drawn from track.geojson, a
+  // completely separate source) already covers it, and letting it double as
+  // toggleable spaghetti let a user's "All models"/checkbox state make the
+  // official track disappear entirely.
+  it("strips kind === 'official' features, keeping every other kind", () => {
+    const fc: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { model: "OFCL", kind: "official" },
+          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        },
+        {
+          type: "Feature",
+          properties: { model: "AVNO", kind: "physics" },
+          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        },
+        {
+          type: "Feature",
+          properties: { model: "AIFS", kind: "ai" },
+          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        },
+      ],
+    };
+    const out = excludeOfficialModel(fc);
+    expect(out.features.map((f) => f.properties?.model).sort()).toEqual(["AIFS", "AVNO"]);
+    expect(out.features.some((f) => f.properties?.kind === "official")).toBe(false);
+  });
+
+  it("returns an empty FeatureCollection for null/undefined input", () => {
+    expect(excludeOfficialModel(undefined).features).toHaveLength(0);
+    expect(excludeOfficialModel(null).features).toHaveLength(0);
   });
 });

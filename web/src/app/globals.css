@@ -33,6 +33,10 @@
      mode — see task-8-report.md's fix-round notes. */
   --outlook-low: #d97b29;
   --outlook-high: #b3402e;
+  /* Staleness/alarm banner — its own token (not --warn-ssw, which is
+     storm-surge purple in active mode and produced exactly this task's
+     off-palette bug the first time). Amber in quiet, muted red in active. */
+  --stale: #d97b29;
   --body-text: #4a4131;
   --title: #2b241a;
   --font-serif: Georgia, "Times New Roman", serif;
@@ -59,6 +63,7 @@
   --warn-tsw: #1f3a5f;
   --outlook-low: #d97b29;
   --outlook-high: #b3402e;
+  --stale: #d97b29;
   --body-text: #4a4131;
   --title: #2b241a;
 }
@@ -82,6 +87,7 @@
   --warn-tsw: #4a7fd4;
   --outlook-low: #d97b29;
   --outlook-high: #b3402e;
+  --stale: #b3402e;
   --body-text: #d5deed;
   --title: #ffffff;
 }
@@ -229,8 +235,8 @@ a {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.04em;
-  color: var(--title);
-  background: var(--warn-ssw);
+  color: #fff;
+  background: var(--stale);
   padding: 6px 22px;
   text-align: center;
 }
@@ -363,6 +369,16 @@ a {
 }
 
 .alert span {
+  color: var(--ink-dim);
+}
+
+/* Shown instead of the alert list when the NWS feed has never successfully
+   loaded (SWR error with no cached data) — distinct from "no alerts active",
+   which renders nothing (quiet) or a normal "no active watches/warnings" line
+   (active). See Alerts.tsx / alerts.ts's deriveAlertsState(). */
+.alert-unavailable {
+  font-size: 11.5px;
+  font-style: italic;
   color: var(--ink-dim);
 }
 

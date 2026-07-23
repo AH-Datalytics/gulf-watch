@@ -7,20 +7,15 @@ import { useMetroAlerts } from "@/components/Alerts";
 import { cdtTime } from "@/lib/format";
 import { useDashboard } from "@/lib/useDashboard";
 
-// Every model in the shared-contracts.md whitelist that's actually plotted on
-// the map (INTENSITY_ONLY models DSHP/LGEM are never drawn). All visible by
-// default; the rail's model legend (Task 9) toggles individual models off.
-const ALL_MAP_MODELS = new Set([
-  "OFCL",
-  "AVNO",
-  "EMXI",
-  "HFSA",
-  "HFSB",
-  "EGRR",
-  "TVCA",
-  "AIFS",
-  "DMWL",
-]);
+// Every guidance model that's toggleable spaghetti on the map (INTENSITY_ONLY
+// DSHP/LGEM are never drawn; OFCL is excluded on purpose — the official NHC
+// track is always drawn from track.geojson's own white 2.2px line/points, so
+// treating OFCL as toggleable spaghetti too would duplicate it and could make
+// it vanish entirely if unchecked; see StormMap.tsx's excludeOfficialModel()).
+// All visible by default; the rail's model legend toggles individual models
+// off, and must agree with this set exactly (its own model list has no OFCL
+// entry either).
+const ALL_MAP_MODELS = new Set(["AVNO", "EMXI", "HFSA", "HFSB", "EGRR", "TVCA", "AIFS", "DMWL"]);
 
 export default function Home() {
   const dashboard = useDashboard();
@@ -30,7 +25,7 @@ export default function Home() {
   // yet); left lifted here so StormMap already has the prop wired.
   void setShowRadar;
 
-  const alerts = useMetroAlerts();
+  const { rows: alerts } = useMetroAlerts();
   const hasHurricaneWarning = alerts.some((a) => a.event.includes("Hurricane Warning"));
 
   return (
