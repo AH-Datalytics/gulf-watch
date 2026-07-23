@@ -54,9 +54,10 @@ def parse_adeck(text: str) -> dict:
     Within each model's own latest cycle, per (tech, tau) duplicate rows
     (one per wind-radii threshold) are deduped, keeping the first. Rows with
     lat or lon of 0 are dropped entirely (junk/null position). Rows with a
-    missing vmax field are also dropped entirely; rows with a present but
-    non-positive vmax keep their track point but are excluded from the
-    intensity series.
+    missing OR malformed (non-numeric, non-blank -- e.g. a placeholder like
+    "****") vmax field are also dropped entirely; rows with a present,
+    well-formed but non-positive vmax keep their track point but are
+    excluded from the intensity series.
 
     Returns:
         {"models_geojson": <FeatureCollection dict>,
@@ -114,7 +115,10 @@ def parse_adeck(text: str) -> dict:
         if vmax_str == "":
             continue  # vmax missing entirely: whole row is unusable
 
-        vmax_kt = int(vmax_str)
+        try:
+            vmax_kt = int(vmax_str)
+        except ValueError:
+            continue  # malformed vmax (non-numeric, non-blank): skip row, don't kill the storm
 
         tech_track = track_points.setdefault(tech, {})
         if tau not in tech_track:

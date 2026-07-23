@@ -72,7 +72,10 @@ describe("filterMetroAlerts", () => {
     ]);
   });
 
-  it("colors Hurricane Warning red, Storm Surge purple, Tropical Storm blue, else the rule token", () => {
+  it("colors alert borders from the mode-aware --warn-* tokens, not literal hexes", () => {
+    // N6 (final review): must reference --warn-hw/--warn-ssw/--warn-tsw so
+    // quiet mode picks up its own distinct palette instead of always
+    // rendering active mode's hex values.
     const rows = filterMetroAlerts([
       orleansHurricaneWarning,
       surgeWarning,
@@ -80,9 +83,9 @@ describe("filterMetroAlerts", () => {
       orleansFloodAdvisory,
     ]);
     const byEvent = Object.fromEntries(rows.map((r) => [r.event, r.color]));
-    expect(byEvent["Hurricane Warning"]).toBe("#d94141");
-    expect(byEvent["Storm Surge Warning"]).toBe("#b04fd6");
-    expect(byEvent["Tropical Storm Watch"]).toBe("#4a7fd4");
+    expect(byEvent["Hurricane Warning"]).toBe("var(--warn-hw)");
+    expect(byEvent["Storm Surge Warning"]).toBe("var(--warn-ssw)");
+    expect(byEvent["Tropical Storm Watch"]).toBe("var(--warn-tsw)");
     expect(byEvent["Flood Advisory"]).toBe("var(--rule)");
   });
 
@@ -119,7 +122,7 @@ describe("deriveAlertsState", () => {
           key: "Hurricane Warning|Orleans; Jefferson",
           event: "Hurricane Warning",
           areaDesc: "Orleans; Jefferson",
-          color: "#d94141",
+          color: "var(--warn-hw)",
         },
       ],
       unavailable: false,

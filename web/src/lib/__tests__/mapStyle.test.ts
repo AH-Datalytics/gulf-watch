@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildGraticule,
   excludeOfficialModel,
+  hasAiGuidance,
+  mergeFeatureCollections,
   outlookAreaLabel,
   outlookColor,
   polygonLabelPoint,
@@ -229,5 +231,89 @@ describe("excludeOfficialModel", () => {
   it("returns an empty FeatureCollection for null/undefined input", () => {
     expect(excludeOfficialModel(undefined).features).toHaveLength(0);
     expect(excludeOfficialModel(null).features).toHaveLength(0);
+  });
+});
+
+describe("hasAiGuidance", () => {
+  // N9: ModelLegend's "AI Guidance" group must only render when there's a
+  // real kind==="ai" feature to show — the demo Solene fixture has one,
+  // but the live feed and ?demo=bertha never do (AIFS is stubbed to always
+  // return [], see ingest/gulfwatch/aifs.py).
+  it("is false for undefined/null models", () => {
+    expect(hasAiGuidance(undefined)).toBe(false);
+    expect(hasAiGuidance(null)).toBe(false);
+  });
+
+  it("is false for an empty FeatureCollection", () => {
+    expect(hasAiGuidance({ type: "FeatureCollection", features: [] })).toBe(false);
+  });
+
+  it("is false when every feature is physics/consensus/official, no ai kind present", () => {
+    const fc: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { model: "OFCL", kind: "official" },
+          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        },
+        {
+          type: "Feature",
+          properties: { model: "AVNO", kind: "physics" },
+          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        },
+      ],
+    };
+    expect(hasAiGuidance(fc)).toBe(false);
+  });
+
+  it("is true when at least one feature is kind === 'ai'", () => {
+    const fc: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { model: "AVNO", kind: "physics" },
+          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        },
+        {
+          type: "Feature",
+          properties: { model: "AIFS", kind: "ai" },
+          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+        },
+      ],
+    };
+    expect(hasAiGuidance(fc)).toBe(true);
+  });
+});
+
+describe("mergeFeatureCollections", () => {
+  // B2 (final review): every non-selected storm's cone gets merged into one
+  // FeatureCollection for a single shared MapLibre source/layer pair.
+  it("concatenates features from multiple FeatureCollections", () => {
+    const a: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", properties: { id: "a" }, geometry: { type: "Point", coordinates: [0, 0] } }],
+    };
+    const b: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", properties: { id: "b" }, geometry: { type: "Point", coordinates: [1, 1] } }],
+    };
+    const out = mergeFeatureCollections([a, b]);
+    expect(out.type).toBe("FeatureCollection");
+    expect(out.features.map((f) => f.properties?.id)).toEqual(["a", "b"]);
+  });
+
+  it("skips undefined/null entries without erroring", () => {
+    const a: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", properties: { id: "a" }, geometry: { type: "Point", coordinates: [0, 0] } }],
+    };
+    const out = mergeFeatureCollections([a, undefined, null]);
+    expect(out.features).toHaveLength(1);
+  });
+
+  it("returns an empty FeatureCollection for an empty list", () => {
+    expect(mergeFeatureCollections([]).features).toHaveLength(0);
   });
 });

@@ -24,6 +24,29 @@
         "models": "models.geojson",
         "intensity": "intensity.json"
       }
+    },
+    {
+      "id": "al982026",
+      "name": "Tobias",
+      "classification": "TS",
+      "intensityMph": 50,
+      "pressureMb": 998,
+      "movementDir": "NW",
+      "movementMph": 9,
+      "lat": 24.0,
+      "lon": -82.0,
+      "advisoryNum": "6",
+      "advisoryTime": "2026-07-22T21:00:00Z",
+      "nextAdvisoryTime": "2026-07-23T03:00:00Z",
+      "inGulfBox": true,
+      "modelCycle": "2026072212",
+      "files": {
+        "cone": "tobias-cone.geojson",
+        "track": "track.geojson",
+        "wwlines": "wwlines.geojson",
+        "models": "models.geojson",
+        "intensity": "intensity.json"
+      }
     }
   ],
   "outlook": {
@@ -32,5 +55,5 @@
     "issued": "2026-07-22T18:00:00Z"
   },
   "errors": [],
-  "_demo": "SIMULATED STORM — DEMO DATA. Hurricane Solene / al992026 is fictional and does not correspond to any real Atlantic system."
+  "_demo": "SIMULATED STORM — DEMO DATA. Hurricane Solene / al992026 and Tropical Storm Tobias / al982026 are both fictional and do not correspond to any real Atlantic system."
 }

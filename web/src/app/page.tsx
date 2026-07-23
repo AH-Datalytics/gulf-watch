@@ -21,10 +21,9 @@ const ALL_MAP_MODELS = new Set(["AVNO", "EMXI", "HFSA", "HFSB", "EGRR", "TVCA", 
 export default function Home() {
   const dashboard = useDashboard();
   const [visibleModels, setVisibleModels] = useState<Set<string>>(ALL_MAP_MODELS);
+  // Off by default per spec (B3, final review): radar is an opt-in overlay,
+  // toggled via the RADAR button rendered over the map below.
   const [showRadar, setShowRadar] = useState(false);
-  // Task-11+ concern (radar toggle UI isn't part of any task's explicit scope
-  // yet); left lifted here so StormMap already has the prop wired.
-  void setShowRadar;
 
   const { rows: alerts } = useMetroAlerts();
   const hasHurricaneWarning = alerts.some((a) => a.event.includes("Hurricane Warning"));
@@ -62,6 +61,7 @@ export default function Home() {
           outlookText={dashboard.outlookText}
           visibleModels={visibleModels}
           onVisibleModelsChange={setVisibleModels}
+          models={dashboard.geo.models}
         />
         <div className="mapcol">
           <StormMap
@@ -69,8 +69,17 @@ export default function Home() {
             mode={dashboard.mode}
             visibleModels={visibleModels}
             showRadar={showRadar}
+            otherStorms={dashboard.otherStorms}
           />
           {dashboard.demo && <div className="simtag">{dashboard.demoTag}</div>}
+          <button
+            type="button"
+            className={`radar-toggle${showRadar ? " on" : ""}`}
+            aria-pressed={showRadar}
+            onClick={() => setShowRadar((v) => !v)}
+          >
+            RADAR {showRadar ? "ON" : "OFF"}
+          </button>
           {dashboard.mode === "active" && dashboard.storm && dashboard.intensity && (
             <IntensityPanel
               intensity={dashboard.intensity}

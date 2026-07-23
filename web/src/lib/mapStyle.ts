@@ -83,7 +83,7 @@ export const WW_COLORS = {
   hurricaneWatch: "#e8a1a1",
   tsWarning: "#4a7fd4",
   tsWatch: "#9dbdf0",
-  surge: "#b3402e",
+  surge: "#b04fd6",
 } as const;
 
 /**
@@ -154,6 +154,35 @@ export function excludeOfficialModel(
   return {
     type: "FeatureCollection",
     features: fc.features.filter((f) => f.properties?.kind !== "official"),
+  };
+}
+
+/**
+ * True iff `models` (models.geojson) actually carries at least one
+ * kind==="ai" feature. N9 (final review): ModelLegend.tsx's "AI Guidance"
+ * group must only render when there's real AI-model data to toggle — the
+ * demo Solene fixture carries AIFS features, but the real live feed and the
+ * ?demo=bertha archive replay never do (AIFS is stubbed to always return
+ * [], see ingest/gulfwatch/aifs.py), so showing an always-empty group there
+ * would be misleading UI.
+ */
+export function hasAiGuidance(models: GeoJSON.FeatureCollection | null | undefined): boolean {
+  if (!models) return false;
+  return models.features.some((f) => f.properties?.kind === "ai");
+}
+
+/**
+ * Merges a list of possibly-undefined FeatureCollections (e.g. one cone per
+ * non-selected storm, B2 final review) into a single FeatureCollection for
+ * one shared MapLibre source — every other storm's cone renders with the
+ * same styling as the selected storm's, so one source/layer pair is enough.
+ */
+export function mergeFeatureCollections(
+  fcs: (GeoJSON.FeatureCollection | undefined | null)[]
+): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: fcs.flatMap((fc) => fc?.features ?? []),
   };
 }
 
@@ -333,6 +362,8 @@ export const LAYER_IDS = {
   outlookLine: "gw-outlook-line",
   coneFill: "gw-cone-fill",
   coneLine: "gw-cone-line",
+  otherConesFill: "gw-other-cones-fill",
+  otherConesLine: "gw-other-cones-line",
   wwlines: "gw-wwlines",
   modelsSolid: "gw-models-solid",
   modelsDashed: "gw-models-dashed",
@@ -347,6 +378,7 @@ export const SOURCE_IDS = {
   graticule: "gw-graticule",
   outlook: "gw-outlook",
   cone: "gw-cone",
+  otherCones: "gw-other-cones",
   wwlines: "gw-wwlines",
   models: "gw-models",
   track: "gw-track",
@@ -366,6 +398,7 @@ export function buildInitialStyle(): StyleSpecification {
       [SOURCE_IDS.graticule]: { type: "geojson", data: graticule.lines },
       [SOURCE_IDS.outlook]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.cone]: { type: "geojson", data: EMPTY_FC },
+      [SOURCE_IDS.otherCones]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.wwlines]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.models]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.track]: { type: "geojson", data: EMPTY_FC },
@@ -426,6 +459,25 @@ export function buildInitialStyle(): StyleSpecification {
         id: LAYER_IDS.coneLine,
         type: "line",
         source: SOURCE_IDS.cone,
+        paint: {
+          "line-color": c.accent,
+          "line-width": 1.2,
+          "line-dasharray": [6, 4],
+        },
+      },
+      // Other (non-selected) storms' cones — same styling as the selected
+      // storm's cone above (B2, final review: "v1: show all cones, detail
+      // for strongest Gulf threat").
+      {
+        id: LAYER_IDS.otherConesFill,
+        type: "fill",
+        source: SOURCE_IDS.otherCones,
+        paint: { "fill-color": c.accent, "fill-opacity": 0.1 },
+      },
+      {
+        id: LAYER_IDS.otherConesLine,
+        type: "line",
+        source: SOURCE_IDS.otherCones,
         paint: {
           "line-color": c.accent,
           "line-width": 1.2,
@@ -514,4 +566,6 @@ export function applyModeColors(map: MapLibreMap): void {
   map.setPaintProperty(LAYER_IDS.graticule, "line-color", c.grid);
   map.setPaintProperty(LAYER_IDS.coneFill, "fill-color", c.accent);
   map.setPaintProperty(LAYER_IDS.coneLine, "line-color", c.accent);
+  map.setPaintProperty(LAYER_IDS.otherConesFill, "fill-color", c.accent);
+  map.setPaintProperty(LAYER_IDS.otherConesLine, "line-color", c.accent);
 }

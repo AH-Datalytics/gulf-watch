@@ -5,6 +5,7 @@ import { GeoJSONSource, Map as MapLibreMap, Marker, setWorkerUrl } from "maplibr
 import type { FilterSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Mode } from "@/lib/types";
+import type { OtherStorm } from "@/lib/useDashboard";
 import {
   applyModeColors,
   buildGraticule,
@@ -12,6 +13,7 @@ import {
   excludeOfficialModel,
   INITIAL_BOUNDS,
   LAYER_IDS,
+  mergeFeatureCollections,
   NOLA_LNGLAT,
   outlookAreaLabel,
   outlookColor,
@@ -50,6 +52,10 @@ export interface StormMapProps {
   mode: Mode;
   visibleModels: Set<string>;
   showRadar: boolean;
+  /** Every non-selected manifest storm (B2, final review) — drawn as a cone
+   *  in the same styling as the selected storm's, plus a small monospace
+   *  name label at its current position. */
+  otherStorms: OtherStorm[];
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -98,7 +104,7 @@ function CompassRose() {
 
 const MAP_PLATE_TEXT = "Gulf of Mexico · Tropical outlook chart · after the household tracking charts of New Orleans";
 
-export default function StormMap({ geo, mode, visibleModels, showRadar }: StormMapProps) {
+export default function StormMap({ geo, mode, visibleModels, showRadar, otherStorms }: StormMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -106,6 +112,7 @@ export default function StormMap({ geo, mode, visibleModels, showRadar }: StormM
   const graticuleMarkersRef = useRef<Marker[]>([]);
   const trackMarkersRef = useRef<Marker[]>([]);
   const outlookMarkersRef = useRef<Marker[]>([]);
+  const otherStormMarkersRef = useRef<Marker[]>([]);
   const nolaMarkerRef = useRef<Marker | null>(null);
 
   // --- create the map once; tear it down on unmount (StrictMode-safe: the
@@ -148,6 +155,7 @@ export default function StormMap({ geo, mode, visibleModels, showRadar }: StormM
       clearMarkers(graticuleMarkersRef.current);
       clearMarkers(trackMarkersRef.current);
       clearMarkers(outlookMarkersRef.current);
+      clearMarkers(otherStormMarkersRef.current);
       nolaMarkerRef.current?.remove();
       nolaMarkerRef.current = null;
       map.remove();
@@ -173,6 +181,25 @@ export default function StormMap({ geo, mode, visibleModels, showRadar }: StormM
     const src = map.getSource(SOURCE_IDS.cone) as GeoJSONSource | undefined;
     src?.setData(geo.cone ?? EMPTY_FC);
   }, [geo.cone, loaded]);
+
+  // --- other (non-selected) storms: cones (same styling as the selected
+  // storm's) + a small monospace name label at each one's current position
+  // (B2, final review — "v1: show all cones, detail for strongest Gulf
+  // threat"). ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const src = map.getSource(SOURCE_IDS.otherCones) as GeoJSONSource | undefined;
+    src?.setData(mergeFeatureCollections(otherStorms.map((s) => s.cone)));
+
+    clearMarkers(otherStormMarkersRef.current);
+    otherStormMarkersRef.current = otherStorms.map((s) => {
+      const el = document.createElement("div");
+      el.className = "gw-map-label gw-storm-label";
+      el.textContent = s.name;
+      return new Marker({ element: el, anchor: "left", offset: [8, 0] }).setLngLat([s.lon, s.lat]).addTo(map);
+    });
+  }, [otherStorms, loaded]);
 
   // --- track (line + points via GL layers, labels via HTML markers) ---
   useEffect(() => {

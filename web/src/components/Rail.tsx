@@ -14,6 +14,9 @@ export interface RailProps {
   outlookText: { issued: string; text: string } | null;
   visibleModels: Set<string>;
   onVisibleModelsChange: (next: Set<string>) => void;
+  /** models.geojson for the selected storm — forwarded to ModelLegend so it
+   *  can decide whether to render the "AI Guidance" group (N9). */
+  models?: GeoJSON.FeatureCollection | null;
 }
 
 /**
@@ -24,7 +27,7 @@ export interface RailProps {
  * mockup's rail order in both variants. Task 11's intensity panel lives
  * under the map, not here.
  */
-export function Rail({ mode, storm, outlookText, visibleModels, onVisibleModelsChange }: RailProps) {
+export function Rail({ mode, storm, outlookText, visibleModels, onVisibleModelsChange, models }: RailProps) {
   return (
     <div className="rail">
       {mode === "active" && storm ? (
@@ -35,6 +38,7 @@ export function Rail({ mode, storm, outlookText, visibleModels, onVisibleModelsC
             visibleModels={visibleModels}
             onChange={onVisibleModelsChange}
             cycleLabel={formatCycle(storm.modelCycle)}
+            models={models}
           />
           <Gauges mode={mode} />
         </>
@@ -47,7 +51,11 @@ export function Rail({ mode, storm, outlookText, visibleModels, onVisibleModelsC
       )}
       <div className="foot">
         {mode === "active" ? (
-          <>NHC / NWS LIX / NOAA CO-OPS / ECMWF / GOOGLE WL</>
+          // N8 (final review): ECMWF/GOOGLE WL removed — no AI-model data
+          // ships in v1 (AIFS is stubbed to always return [], see aifs.py).
+          // IEM/mesonet credited here since radar is now user-enableable
+          // (see the RADAR toggle, StormMap.tsx).
+          <>NHC / NWS LIX / NOAA CO-OPS / IEM NEXRAD</>
         ) : (
           <>Sources: National Hurricane Center · NWS New Orleans/Baton Rouge · NOAA Tides &amp; Currents</>
         )}

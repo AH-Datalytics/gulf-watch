@@ -138,6 +138,24 @@ def test_per_model_latest_cycle(result):
     assert result["intensity"]["cycle"] == "2026072218"
 
 
+def test_malformed_vmax_row_skipped_not_raised():
+    # T1a (final review): a non-numeric, non-blank vmax field (e.g. a
+    # placeholder like "****") must be skipped like any other malformed row
+    # -- not raise out of parse_adeck and kill every model for the storm.
+    # tau=12's vmax is malformed here; only tau=0 should survive for OFCL.
+    text = (
+        "AL, 09, 2026072200, 03, OFCL,   0, 255N,  875W,  85,  970, HU\n"
+        "AL, 09, 2026072200, 03, OFCL,  12, 256N,  876W, ****,  968, HU\n"
+    )
+    result = parse_adeck(text)
+    ofcl = feature_for(result, "OFCL")
+    assert ofcl is not None
+    assert len(ofcl["geometry"]["coordinates"]) == 1
+    assert ofcl["geometry"]["coordinates"][0] == [-87.5, 25.5]
+    ofcl_series = series_for(result, "OFCL")
+    assert [p["tauH"] for p in ofcl_series["points"]] == [0]
+
+
 def test_vmax_zero_keeps_track_but_not_intensity(result):
     # TVCA tau=0 has vmax=0 (present but non-positive): keep the track point,
     # drop it from the intensity series.

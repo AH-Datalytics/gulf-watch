@@ -669,6 +669,34 @@ a {
   z-index: 1;
 }
 
+/* ============ Radar toggle (B3, final review) — overlaid bottom-right on the map, both modes ============ */
+.radar-toggle {
+  position: absolute;
+  right: 16px;
+  bottom: 44px;
+  z-index: 2;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+.radar-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+.radar-toggle.on {
+  color: var(--title);
+  border-color: var(--accent);
+}
+
 /* ============ Quiet-mode map chart furniture (StormMap.tsx, quiet only) ============ */
 .gw-compass {
   position: absolute;
@@ -718,6 +746,17 @@ a {
 .gw-track-label {
   font-size: 10.5px;
   color: var(--ink);
+  text-shadow:
+    0 0 3px var(--water),
+    0 0 5px var(--water);
+}
+
+/* Non-selected storms' name labels (B2, final review) — same halo treatment
+   as .gw-track-label, slightly dimmer since these storms carry no other
+   detail on the map. */
+.gw-storm-label {
+  font-size: 10.5px;
+  color: var(--ink-dim);
   text-shadow:
     0 0 3px var(--water),
     0 0 5px var(--water);

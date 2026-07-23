@@ -447,6 +447,32 @@ def test_adeck_models_and_intensity_upload_failures_labeled_separately():
 
 
 # ---------------------------------------------------------------------------
+# BLOCKER B1 (final review): a CurrentStorms.json fetch failure (both
+# attempts exhausted) must be a total-run failure, not a synthesized quiet
+# run -- writing a fresh {"activeStorms": []}-derived manifest/state on a
+# transient NHC outage would erase whatever storm is currently live on the
+# public site. Required behavior: write NOTHING to the store (no
+# manifest.json, no state.json -- last-good stays untouched) and propagate
+# the failure so ingest.py's existing top-level try/except exits 1 for this
+# run. This is distinct from a *legitimately* empty activeStorms list (a
+# normal quiet run, exercised by test_quiet_path_no_storms_outlook_refreshed
+# above), which must keep writing normally.
+# ---------------------------------------------------------------------------
+
+
+def test_current_storms_fetch_failure_writes_nothing_and_raises():
+    fetch = FakeFetch({}, raising={nhc.CURRENT_STORMS_URL})
+    store = FakeStore()
+
+    with pytest.raises(Exception):
+        run(fetch=fetch, store=store)
+
+    assert store.put_calls == []
+    # Retried once (per the 30s/one-retry-at-10s-backoff policy) before giving up.
+    assert fetch.calls.count(nhc.CURRENT_STORMS_URL) == 2
+
+
+# ---------------------------------------------------------------------------
 # AIFS graceful degradation (Task 5): gulfwatch.aifs.fetch_aifs_tracks is
 # stubbed to always return [] and never raise (see aifs.py's SPIKE
 # OUTCOME), but pipeline.py wraps the call in its own try/except regardless

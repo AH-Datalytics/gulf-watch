@@ -341,8 +341,21 @@ def run(fetch=requests.get, store=blob) -> dict:
         current_resp = _fetch_with_retry(fetch, nhc.CURRENT_STORMS_URL)
         current_data = current_resp.json()
     except Exception as exc:
-        errors.append({"product": "current_storms", "message": str(exc)})
-        current_data = {"activeStorms": []}
+        # CurrentStorms.json is the one feed whose failure must NOT degrade
+        # to "synthesize an empty/quiet run": doing so would write a fresh
+        # quiet manifest.json + state.json over whatever storm is currently
+        # live on the public site during a transient NHC outage, silently
+        # erasing it. Distinct from a legitimately empty activeStorms list
+        # (a normal, valid quiet run -- that keeps writing normally below).
+        # Write nothing to the store and propagate: ingest.py's top-level
+        # try/except prints "FAILED - {exc}" and exits 1 for this run,
+        # leaving last-good manifest/state untouched for the next run to
+        # retry against.
+        print(
+            "gulf-watch ingest: CurrentStorms.json fetch failed after retry -- "
+            f"aborting run, last-good manifest/state left untouched: {exc}"
+        )
+        raise
 
     # Parse one raw storm entry at a time (rather than the whole payload in
     # one nhc.parse_current_storms() call) so a single malformed entry

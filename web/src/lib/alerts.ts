@@ -30,10 +30,16 @@ function severityRank(event: string): number {
   return 3;
 }
 
+// N6 (final review): border colors reference the mode-aware --warn-* design
+// tokens (see globals.css) rather than hardcoding the active-mode hex values
+// directly -- the previous literals (#d94141/#b04fd6/#4a7fd4) happened to
+// match --warn-hw/--warn-ssw/--warn-tsw in active mode but silently
+// clobbered quiet mode's distinct palette (#b3402e/#d97b29/#1f3a5f) with
+// active-mode colors instead.
 function colorForEvent(event: string): string {
-  if (event.includes("Hurricane Warning")) return "#d94141";
-  if (event.includes("Storm Surge")) return "#b04fd6";
-  if (event.includes("Tropical Storm")) return "#4a7fd4";
+  if (event.includes("Hurricane Warning")) return "var(--warn-hw)";
+  if (event.includes("Storm Surge")) return "var(--warn-ssw)";
+  if (event.includes("Tropical Storm")) return "var(--warn-tsw)";
   return "var(--rule)";
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import { hasAiGuidance } from "@/lib/mapStyle";
 import { MODEL_COLORS } from "@/lib/modelColors";
 
 interface ModelMeta {
@@ -48,9 +49,12 @@ export interface ModelLegendProps {
   onChange: (next: Set<string>) => void;
   /** e.g. "12Z" — shown in the kicker as "Guidance — 12Z Cycle". */
   cycleLabel?: string;
+  /** models.geojson for the selected storm — used only to decide whether
+   *  the "AI Guidance" group has anything real to show (see {@link hasAiGuidance}). */
+  models?: GeoJSON.FeatureCollection | null;
 }
 
-export function ModelLegend({ visibleModels, onChange, cycleLabel }: ModelLegendProps) {
+export function ModelLegend({ visibleModels, onChange, cycleLabel, models }: ModelLegendProps) {
   function toggle(code: string) {
     const next = new Set(visibleModels);
     if (next.has(code)) next.delete(code);
@@ -58,11 +62,13 @@ export function ModelLegend({ visibleModels, onChange, cycleLabel }: ModelLegend
     onChange(next);
   }
 
+  const groups = hasAiGuidance(models) ? GROUPS : GROUPS.filter((g) => g.label !== "AI Guidance");
+
   return (
     <div>
       <div className="kicker">Guidance{cycleLabel ? ` — ${cycleLabel} Cycle` : ""}</div>
       <div className="models">
-        {GROUPS.map((group) => (
+        {groups.map((group) => (
           <Fragment key={group.label}>
             <div className="grp">{group.label}</div>
             {group.models.map((model) => (

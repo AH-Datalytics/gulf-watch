@@ -84,7 +84,7 @@ export function demoTag(demoParam: string | null): string | null {
 }
 
 /** Strongest inGulfBox storm, else strongest storm overall, else null. */
-function selectStorm(storms: StormEntry[]): StormEntry | null {
+export function selectStorm(storms: StormEntry[]): StormEntry | null {
   if (storms.length === 0) return null;
   const inGulf = storms.filter((s) => s.inGulfBox);
   const pool = inGulf.length > 0 ? inGulf : storms;
@@ -93,11 +93,41 @@ function selectStorm(storms: StormEntry[]): StormEntry | null {
   );
 }
 
-function computeStale(manifest: Manifest | undefined, mode: Mode): boolean {
+/**
+ * Every manifest storm EXCEPT the selected one (B2, final review — "v1: show
+ * all cones, detail for strongest Gulf threat"). These get a cone + a name
+ * label on the map but none of the selected storm's full detail (track,
+ * models, wwlines, intensity, rail header). Order is preserved from
+ * `storms`; when `selected` is null every storm is "other" (nothing to
+ * exclude).
+ */
+export function otherStorms(storms: StormEntry[], selected: StormEntry | null): StormEntry[] {
+  if (!selected) return storms;
+  return storms.filter((s) => s.id !== selected.id);
+}
+
+/**
+ * True if `manifest.generated` is older than the mode's staleness threshold.
+ * Always false while in demo mode (N4, final review): demo showcases replay
+ * a fixed, already-old `generated` timestamp on purpose, and must never
+ * flash "Data may be delayed" — that's a live-feed concern only.
+ */
+export function computeStale(manifest: Manifest | undefined, mode: Mode, demo: boolean): boolean {
+  if (demo) return false;
   if (!manifest) return false;
   const thresholdHours = mode === "active" ? STALE_HOURS.active : STALE_HOURS.quiet;
   const ageMs = Date.now() - new Date(manifest.generated).getTime();
   return ageMs > thresholdHours * 3600 * 1000;
+}
+
+/** A non-selected storm's map presentation: just enough to draw its cone
+ *  + a name label at its current position (B2, final review). */
+export interface OtherStorm {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  cone?: GeoJSON.FeatureCollection;
 }
 
 export interface DashboardData {
@@ -109,6 +139,9 @@ export interface DashboardData {
    *  null otherwise. See {@link demoTag}. */
   demoTag: string | null;
   storm: StormEntry | null;
+  /** Every OTHER manifest storm (v1: "show all cones, detail for strongest
+   *  Gulf threat") — see {@link otherStorms}. */
+  otherStorms: OtherStorm[];
   geo: {
     cone?: GeoJSON.FeatureCollection;
     track?: GeoJSON.FeatureCollection;
@@ -132,6 +165,39 @@ export function useDashboard(): DashboardData {
   );
 
   const storm = useMemo(() => selectStorm(manifest?.storms ?? []), [manifest]);
+
+  // B2 (final review): every other manifest storm gets its own cone drawn on
+  // the map (same styling as the selected storm's) plus a name label — the
+  // selected storm's cone is already fetched separately below via `coneUrl`,
+  // so it's excluded here to avoid double-fetching the same URL twice under
+  // two different SWR cache keys.
+  const otherStormEntries = useMemo(
+    () => otherStorms(manifest?.storms ?? [], storm),
+    [manifest, storm]
+  );
+  const otherConeUrls = useMemo(
+    () => otherStormEntries.map((s) => `${base}/${s.files.cone}`),
+    [otherStormEntries, base]
+  );
+  // One combined SWR fetch (Promise.all over the URL list) rather than one
+  // useSWR call per storm: the storm count varies run to run, and calling a
+  // hook a variable number of times per render would break the rules of
+  // hooks.
+  const { data: otherCones } = useSWR<GeoJSON.FeatureCollection[]>(
+    otherConeUrls.length > 0 ? otherConeUrls : null,
+    (urls: string[]) => Promise.all(urls.map((u) => jsonFetcher<GeoJSON.FeatureCollection>(u)))
+  );
+  const otherStormsWithCones = useMemo<OtherStorm[]>(
+    () =>
+      otherStormEntries.map((s, i) => ({
+        id: s.id,
+        name: s.name,
+        lat: s.lat,
+        lon: s.lon,
+        cone: otherCones?.[i],
+      })),
+    [otherStormEntries, otherCones]
+  );
 
   const coneUrl = storm ? `${base}/${storm.files.cone}` : null;
   const trackUrl = storm ? `${base}/${storm.files.track}` : null;
@@ -165,7 +231,7 @@ export function useDashboard(): DashboardData {
   );
 
   const mode: Mode = manifest?.mode ?? "quiet";
-  const stale = computeStale(manifest, mode);
+  const stale = computeStale(manifest, mode, demo);
 
   return {
     manifest: manifest ?? null,
@@ -173,6 +239,7 @@ export function useDashboard(): DashboardData {
     demo,
     demoTag: demoTag(demoParam),
     storm,
+    otherStorms: otherStormsWithCones,
     geo: {
       cone,
       track,
