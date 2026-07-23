@@ -124,51 +124,53 @@ def _storm_paths(stormid: str) -> dict:
     }
 
 
+_GIS_PREDICATES = {"cone": _is_cone, "track": _is_track, "wwlines": _is_wwlines}
+
+
 def _process_gis(storm, paths, fetch, store, errors):
     """Fetch+convert+upload cone/track/wwlines for one storm whose advisory
-    just changed. Each of the three products is fetched/converted/uploaded
-    independently and wrapped in its own try/except, so one bad zip doesn't
-    take out the others -- even when all three keys point at the same
-    bundled zip (the common case today), a failure on one key's attempt
-    doesn't prevent the next key's independent attempt.
+    just changed.
 
-    Downloads are cached by URL within this call so the common
-    all-three-keys-share-one-zip case only fetches and converts it once.
+    Each unique URL across the three gis_urls keys is fetched and converted
+    exactly once up front (whether that attempt succeeds or fails) -- the
+    common case today is all three keys pointing at the same bundled zip,
+    and a failure there must not trigger three separate fetch-and-retry
+    attempts (six HTTP calls) for what is really one download. Each of the
+    three product keys then gets its own try/except around
+    extract-and-upload (or its own error entry, reusing the cached
+    exception, if its URL's fetch failed) -- so one bad *upload* still
+    can't take out the others, even when their downloads succeeded.
 
     Returns the freshly-built track FeatureCollection (or None if the
-    track product's own fetch/convert failed), for the storm_in_gulf check.
+    track product's own fetch/convert/upload failed), for the
+    storm_in_gulf check.
     """
-    zip_cache: dict[str, dict] = {}
-
-    def geojson_for(url):
-        if url not in zip_cache:
+    unique_urls = {storm.gis_urls[key] for key in _GIS_PREDICATES}
+    fetched: dict[str, dict] = {}
+    fetch_errors: dict[str, Exception] = {}
+    for url in unique_urls:
+        try:
             resp = _fetch_with_retry(fetch, url)
-            zip_cache[url] = shp.zip_to_geojson(resp.content)
-        return zip_cache[url]
+            fetched[url] = shp.zip_to_geojson(resp.content)
+        except Exception as exc:  # noqa: BLE001 - recorded per-product below
+            fetch_errors[url] = exc
 
     track_fc = None
-
-    try:
-        merged = geojson_for(storm.gis_urls["cone"])
-        cone_fc = _select_features(merged, _is_cone)
-        store.put_json(paths["cone"], cone_fc)
-    except Exception as exc:
-        errors.append({"product": f"{storm.id}.cone", "message": str(exc)})
-
-    try:
-        merged = geojson_for(storm.gis_urls["track"])
-        track_fc = _select_features(merged, _is_track)
-        store.put_json(paths["track"], track_fc)
-    except Exception as exc:
-        errors.append({"product": f"{storm.id}.track", "message": str(exc)})
-        track_fc = None
-
-    try:
-        merged = geojson_for(storm.gis_urls["wwlines"])
-        ww_fc = _select_features(merged, _is_wwlines)
-        store.put_json(paths["wwlines"], ww_fc)
-    except Exception as exc:
-        errors.append({"product": f"{storm.id}.wwlines", "message": str(exc)})
+    for key, predicate in _GIS_PREDICATES.items():
+        url = storm.gis_urls[key]
+        if url in fetch_errors:
+            errors.append(
+                {"product": f"{storm.id}.{key}", "message": str(fetch_errors[url])}
+            )
+            continue
+        try:
+            fc = _select_features(fetched[url], predicate)
+            store.put_json(paths[key], fc)
+        except Exception as exc:
+            errors.append({"product": f"{storm.id}.{key}", "message": str(exc)})
+            continue
+        if key == "track":
+            track_fc = fc
 
     return track_fc
 
@@ -197,11 +199,17 @@ def _process_adeck(storm, paths, prev_cycle, fetch, store, errors):
 
     new_cycle = parsed["cycle"]
     if new_cycle != prev_cycle:
+        # models.geojson and intensity.json are two separate uploads with
+        # their own failure modes -- label and isolate them independently
+        # rather than blaming both on "models" if only one put fails.
         try:
             store.put_json(paths["models"], parsed["models_geojson"])
-            store.put_json(paths["intensity"], parsed["intensity"])
         except Exception as exc:
             errors.append({"product": f"{storm.id}.models", "message": str(exc)})
+        try:
+            store.put_json(paths["intensity"], parsed["intensity"])
+        except Exception as exc:
+            errors.append({"product": f"{storm.id}.intensity", "message": str(exc)})
     return new_cycle
 
 

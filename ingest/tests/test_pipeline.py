@@ -95,20 +95,27 @@ class FakeFetch:
 
 
 class FakeStore:
-    """In-memory get_json/put_json/put_bytes double."""
+    """In-memory get_json/put_json/put_bytes double. `raising_paths` lets a
+    test make a specific put_json path fail (e.g. to test per-product error
+    labeling) without touching every other path."""
 
-    def __init__(self, initial: dict | None = None):
+    def __init__(self, initial: dict | None = None, raising_paths: set | None = None):
         self.data = dict(initial or {})
         self.put_calls: list[str] = []
+        self.raising_paths = raising_paths or set()
 
     def get_json(self, path):
         return self.data.get(path)
 
     def put_json(self, path, obj):
+        if path in self.raising_paths:
+            raise RuntimeError(f"simulated store failure: {path}")
         self.data[path] = obj
         self.put_calls.append(path)
 
     def put_bytes(self, path, data, content_type):
+        if path in self.raising_paths:
+            raise RuntimeError(f"simulated store failure: {path}")
         self.data[path] = data
         self.put_calls.append(path)
 
@@ -370,3 +377,69 @@ def test_malformed_storm_entry_does_not_kill_the_run():
     assert [s["id"] for s in manifest["storms"]] == ["al022026"]
     error_products = {e["product"] for e in manifest["errors"]}
     assert "al992026" in error_products
+
+
+# ---------------------------------------------------------------------------
+# Regression: a shared GIS URL (the common case -- cone/track/wwlines all
+# point at one bundled zip) that fails must be fetched exactly once (plus
+# its one retry), not once per product key. Each of the three products
+# still gets its own manifest.errors entry (so callers can see all three
+# products are missing), but no *extra* HTTP attempts happen beyond the
+# single fetch's own retry.
+# ---------------------------------------------------------------------------
+
+
+def test_shared_gis_url_failure_dedupes_fetch_attempts():
+    routes = {
+        nhc.CURRENT_STORMS_URL: FakeResponse(json_data=CURRENT_STORMS_JSON),
+        BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
+    }
+    routes.update(_outlook_routes())
+    # Bertha's cone/track/wwlines gis_urls all point at BERTHA_GIS_URL in the
+    # fixture -- make that one shared URL fail.
+    fetch = FakeFetch(routes, raising={BERTHA_GIS_URL})
+    store = FakeStore()
+
+    manifest = run(fetch=fetch, store=store)
+
+    error_products = {e["product"] for e in manifest["errors"]}
+    assert error_products == {"al022026.cone", "al022026.track", "al022026.wwlines"}
+    assert len(manifest["errors"]) == 3
+
+    # Exactly one fetch attempt + one retry for the shared URL -- NOT one
+    # attempt+retry pair per product key (which would be 6 calls).
+    assert fetch.calls.count(BERTHA_GIS_URL) == 2
+
+    for path in (
+        "storms/al022026/cone.geojson",
+        "storms/al022026/track.geojson",
+        "storms/al022026/wwlines.geojson",
+    ):
+        assert path not in store.put_calls
+
+
+# ---------------------------------------------------------------------------
+# Minor fix: models.geojson and intensity.json are two separate uploads and
+# must get two separately-labeled error entries, not both blamed on
+# "{id}.models".
+# ---------------------------------------------------------------------------
+
+
+def test_adeck_models_and_intensity_upload_failures_labeled_separately():
+    store = FakeStore(raising_paths={"storms/al022026/intensity.json"})
+    routes = {
+        nhc.CURRENT_STORMS_URL: FakeResponse(json_data=CURRENT_STORMS_JSON),
+        BERTHA_GIS_URL: FakeResponse(content=SAMPLE_CONE_ZIP),
+        BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
+    }
+    routes.update(_outlook_routes())
+    fetch = FakeFetch(routes)
+
+    manifest = run(fetch=fetch, store=store)
+
+    error_products = {e["product"] for e in manifest["errors"]}
+    assert error_products == {"al022026.intensity"}
+    assert "al022026.models" not in error_products
+    # models.geojson upload itself succeeded independently of intensity's failure.
+    assert "storms/al022026/models.geojson" in store.put_calls
+    assert "storms/al022026/intensity.json" not in store.put_calls
