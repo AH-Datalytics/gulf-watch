@@ -1,0 +1,2 @@
+requests>=2,<3
+pyshp>=2,<3
