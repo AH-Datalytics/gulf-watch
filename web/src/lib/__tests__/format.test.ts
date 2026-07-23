@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { categoryFor, cdtTime, countdown } from "../format";
+import {
+  categoryFor,
+  cdtTime,
+  countdown,
+  formatCycle,
+  nextOutlookIssueTime,
+  stormTypeLabel,
+} from "../format";
 
 describe("categoryFor", () => {
   it("classifies below tropical storm threshold as TD", () => {
@@ -83,5 +90,39 @@ describe("countdown", () => {
     const now = new Date("2026-07-22T22:00:00Z");
     const target = "2026-07-22T21:00:00Z"; // already passed
     expect(countdown(target, now)).toBe("T−0:00");
+  });
+});
+
+describe("stormTypeLabel", () => {
+  it("maps known NHC classification codes", () => {
+    expect(stormTypeLabel("HU")).toBe("Hurricane");
+    expect(stormTypeLabel("TS")).toBe("Tropical Storm");
+    expect(stormTypeLabel("TD")).toBe("Tropical Depression");
+  });
+
+  it("passes through an unrecognized code as-is", () => {
+    expect(stormTypeLabel("XX")).toBe("XX");
+  });
+});
+
+describe("formatCycle", () => {
+  it("extracts the hour and appends Z", () => {
+    expect(formatCycle("2026072212")).toBe("12Z");
+  });
+
+  it("handles a midnight cycle", () => {
+    expect(formatCycle("2026072300")).toBe("00Z");
+  });
+});
+
+describe("nextOutlookIssueTime", () => {
+  it("finds the next of the four daily CDT slots (1 PM issued -> 7 PM)", () => {
+    // 2026-07-22T18:00:00Z is 1:00 PM CDT.
+    expect(nextOutlookIssueTime("2026-07-22T18:00:00Z")).toBe("7:00 PM CDT");
+  });
+
+  it("wraps to the next day's 1 AM after the 7 PM slot", () => {
+    // 2026-07-23T00:00:00Z is 7:00 PM CDT (July 22).
+    expect(nextOutlookIssueTime("2026-07-23T00:00:00Z")).toBe("1:00 AM CDT");
   });
 });

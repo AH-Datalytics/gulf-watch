@@ -57,3 +57,58 @@ export function countdown(toIso: string, now: Date = new Date()): string {
   const minutes = totalMinutes % 60;
   return `T−${hours}:${String(minutes).padStart(2, "0")}`;
 }
+
+/** Human label for a StormEntry's NHC classification code (mockup's "Hurricane"/"Tropical Storm" prefix). */
+export function stormTypeLabel(classification: string): string {
+  switch (classification) {
+    case "HU":
+      return "Hurricane";
+    case "TS":
+      return "Tropical Storm";
+    case "TD":
+      return "Tropical Depression";
+    case "STD":
+      return "Subtropical Depression";
+    case "SS":
+      return "Subtropical Storm";
+    default:
+      return classification;
+  }
+}
+
+/** "2026072212" -> "12Z" (the modelCycle hour, NHC/model-guidance style). */
+export function formatCycle(modelCycle: string): string {
+  const hh = modelCycle.slice(-2);
+  return `${hh}Z`;
+}
+
+function chicagoHour(date: Date): number {
+  const s = new Intl.DateTimeFormat("en-US", {
+    timeZone: CHICAGO_TIME_ZONE,
+    hour: "numeric",
+    hour12: false,
+  }).format(date);
+  return Number(s) % 24;
+}
+
+// NHC's Tropical Weather Outlook issues four times daily in Chicago local
+// time: 1 AM / 7 AM / 1 PM / 7 PM CDT (per the task brief).
+const OUTLOOK_ISSUE_HOURS_CDT = [1, 7, 13, 19];
+
+/**
+ * Renders the next scheduled Tropical Weather Outlook issue time (CDT) after
+ * `issuedIso`, e.g. issued 1:00 PM CDT -> "7:00 PM CDT". Walks forward an hour
+ * at a time (at most a day) so DST transitions resolve the same way `cdtTime`
+ * does, via Intl rather than manual UTC-offset math.
+ */
+export function nextOutlookIssueTime(issuedIso: string): string {
+  const issued = new Date(issuedIso);
+  let t = issued;
+  for (let i = 0; i < 24; i++) {
+    t = new Date(t.getTime() + 60 * 60 * 1000);
+    if (OUTLOOK_ISSUE_HOURS_CDT.includes(chicagoHour(t))) {
+      return cdtTime(t.toISOString());
+    }
+  }
+  return cdtTime(issued.toISOString());
+}

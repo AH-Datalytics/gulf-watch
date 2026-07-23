@@ -108,8 +108,7 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
-/* ============ Page shell: rail + map column (mockup .main/.rail/.mapcol) ============
-   Task 8 only builds the map column; the rail is a Task 9 placeholder here. */
+/* ============ Page shell: masthead + rail + map column (mockup .masthead/.main/.rail/.mapcol) ============ */
 .app-shell {
   display: flex;
   flex-direction: column;
@@ -125,8 +124,13 @@ a {
 .rail {
   width: 330px;
   flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
   border-right: 1px solid var(--rule);
   background: var(--panel);
+  padding: 18px 20px;
 }
 
 .mapcol {
@@ -134,12 +138,321 @@ a {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
 }
 
 .gw-map {
   flex: 1;
   position: relative;
   min-height: 480px;
+}
+
+/* ============ Masthead ============ */
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px 12px;
+  border-bottom: 2px solid var(--ink);
+}
+
+[data-mode="quiet"] .masthead {
+  font-family: var(--font-serif);
+}
+
+.masthead .title {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  color: var(--title);
+}
+
+.masthead .title em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.masthead .org {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--coast);
+}
+
+[data-mode="active"] .masthead {
+  padding: 10px 22px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule);
+}
+
+[data-mode="active"] .masthead .title {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--title);
+}
+
+[data-mode="active"] .masthead .title span {
+  /* Mockup doesn't reset text-transform/letter-spacing on the span — the
+     whole title (incl. this span) renders uppercase, differentiated from
+     "THE GULF WATCH" only by color/weight. */
+  color: var(--ink-dim);
+  font-weight: 400;
+}
+
+.masthead .warnchip {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--warn-hw);
+  color: #fff;
+  padding: 4px 10px;
+}
+
+/* ============ Staleness banner ============ */
+.stale-banner {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--title);
+  background: var(--warn-ssw);
+  padding: 6px 22px;
+  text-align: center;
+}
+
+/* ============ Rail content — quiet (heirloom chart) ============ */
+[data-mode="quiet"] .status {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  color: var(--title);
+}
+
+.status .ok {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ok);
+  margin-right: 7px;
+}
+
+.issued {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  margin-top: 6px;
+  font-family: var(--font-mono);
+}
+
+.kicker {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.body-text {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--body-text);
+}
+
+/* ============ Rail content — active (operations desk) ============ */
+[data-mode="active"] .kicker {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+}
+
+.storm-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--title);
+}
+
+.cat {
+  display: inline-block;
+  background: var(--accent);
+  color: #161006;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: 3px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-top: 10px;
+}
+
+.stats > div {
+  background: #0f1c33;
+  padding: 7px 9px;
+}
+
+.stats .l {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.stats .v {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--title);
+  margin-top: 2px;
+}
+
+.stats .unit {
+  font-size: 10px;
+  color: #8ca0bf;
+}
+
+.adv {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #8ca0bf;
+  margin-top: 9px;
+}
+
+.adv b {
+  color: var(--accent);
+}
+
+/* .alert renders in both modes (quiet shows it only when non-tropical NWS
+   alerts happen to be active) — unlike .stats/.adv above, which are
+   StormHeader-only (active mode only), so its colors must be token-based
+   rather than the mockup's active-only literal navy. */
+.alert {
+  border-left: 3px solid var(--rule);
+  padding: 6px 9px;
+  margin-bottom: 6px;
+  background: var(--panel);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.alert b {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--title);
+}
+
+.alert span {
+  color: var(--ink-dim);
+}
+
+.models {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 12px;
+  font-size: 11.5px;
+}
+
+.models .m {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.models .m input {
+  margin: 0;
+}
+
+.models .sw {
+  width: 16px;
+  height: 0;
+  border-top: 2px solid;
+}
+
+.models .sw.dash {
+  border-top-style: dashed;
+}
+
+.models .grp {
+  grid-column: 1 / -1;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-top: 5px;
+}
+
+.legend-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.legend-actions button {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: none;
+  border: 1px solid var(--rule);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.legend-actions button:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+/* ============ Rail foot (both modes) ============ */
+.foot {
+  margin-top: auto;
+  font-size: 10px;
+  color: var(--ink-dim);
+  line-height: 1.6;
+  border-top: 1px solid var(--rule);
+  padding-top: 10px;
+}
+
+[data-mode="active"] .foot {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 1.7;
+}
+
+/* ============ Map corner tag + page disclaimer ============ */
+.simtag {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+  border: 1px solid var(--rule);
+  padding: 3px 7px;
+  background: var(--panel);
+  z-index: 1;
+}
+
+.disclaimer {
+  font-size: 10px;
+  color: var(--ink-dim);
+  text-align: center;
+  padding: 8px 22px;
+  border-top: 1px solid var(--rule);
+  background: var(--panel);
 }
 
 /* ============ Map labels — plain HTML/CSS markers (no glyph-server dependency) ============ */
