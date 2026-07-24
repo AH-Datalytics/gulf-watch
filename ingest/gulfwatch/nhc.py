@@ -70,6 +70,17 @@ class Storm:
     advisory_time: str  # ISO 8601 UTC, e.g. "2026-07-23T00:00:00Z"
     next_advisory_time: str  # ISO 8601 UTC
     gis_urls: dict
+    # Text-product URLs (gulfwatch.text / gulfwatch.probs), all from
+    # CurrentStorms.json fields that may legitimately be missing on a
+    # given storm entry -- default to "" rather than requiring callers to
+    # pass them, so every existing Storm(...) construction stays valid.
+    # publicAdvisory's own issued time is advisory_time above (same field,
+    # not duplicated); only the discussion needs its own issuance since it
+    # can differ from the public advisory's.
+    discussion_url: str = ""
+    discussion_issued: str = ""  # ISO 8601 UTC
+    advisory_url: str = ""
+    probs_url: str = ""
 
 
 def _parse_nhc_time(raw: str) -> datetime:
@@ -110,6 +121,17 @@ def parse_current_storms(data: dict) -> list[Storm]:
         advisory_num = public_advisory.get("advNum") or ""
         raw_time = public_advisory.get("issuance") or s.get("lastUpdate") or ""
         advisory_time = _iso_z(_parse_nhc_time(raw_time)) if raw_time else ""
+        advisory_url = public_advisory.get("url") or ""
+
+        forecast_discussion = s.get("forecastDiscussion") or {}
+        discussion_url = forecast_discussion.get("url") or ""
+        raw_discussion_time = forecast_discussion.get("issuance") or ""
+        discussion_issued = (
+            _iso_z(_parse_nhc_time(raw_discussion_time)) if raw_discussion_time else ""
+        )
+
+        wind_speed_probabilities = s.get("windSpeedProbabilities") or {}
+        probs_url = wind_speed_probabilities.get("url") or ""
 
         storms.append(
             Storm(
@@ -126,6 +148,10 @@ def parse_current_storms(data: dict) -> list[Storm]:
                 advisory_time=advisory_time,
                 next_advisory_time=_next_advisory_time(advisory_time) if advisory_time else "",
                 gis_urls={key: _gis_url(s, key) for key in _GIS_FIELD_BY_KEY},
+                discussion_url=discussion_url,
+                discussion_issued=discussion_issued,
+                advisory_url=advisory_url,
+                probs_url=probs_url,
             )
         )
     return storms

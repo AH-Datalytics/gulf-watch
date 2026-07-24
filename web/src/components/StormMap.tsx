@@ -10,6 +10,7 @@ import {
   applyModeColors,
   buildGraticule,
   buildInitialStyle,
+  ESRI_ATTRIBUTION,
   excludeOfficialModel,
   INITIAL_BOUNDS,
   LAYER_IDS,
@@ -78,37 +79,27 @@ function clearMarkers(markers: Marker[]): void {
 }
 
 /**
- * Quiet-mode-only chart furniture — a compass rose + italic map plate,
- * matching docs/superpowers/specs/two-moods-v2-mockup.html's quiet-mode map
- * exactly (its <g transform="translate(838,60)"> compass group and .plate
- * caption). Plain HTML/SVG overlays (not MapLibre layers): they're static
- * decoration, not data-driven, so they don't need a source/layer round-trip.
+ * A small north-arrow compass rose — a standard real-map convention (not
+ * decoration unique to any one content mode), rendered in both quiet and
+ * active modes now that the basemap is real satellite imagery. Plain
+ * HTML/SVG overlay (not a MapLibre layer): it's static, not data-driven, so
+ * it doesn't need a source/layer round-trip. White strokes + a drop-shadow
+ * filter (see globals.css's .gw-compass) keep it legible over imagery of
+ * any brightness.
  */
 function CompassRose() {
   return (
     <svg className="gw-compass" viewBox="0 0 60 60" aria-hidden="true">
-      <g transform="translate(30,32)" stroke="var(--ink-dim)" fill="none">
-        <circle r="22" />
-        <path d="M0,-22 L4,-6 L0,0 L-4,-6 Z" fill="var(--ink-dim)" stroke="none" />
-        <line x1="0" y1="10" x2="0" y2="22" />
-        <line x1="-22" y1="0" x2="-10" y2="0" />
-        <line x1="10" y1="0" x2="22" y2="0" />
-        <text
-          y="-28"
-          textAnchor="middle"
-          fontFamily="var(--font-serif)"
-          fontSize="10"
-          fill="var(--ink-dim)"
-          stroke="none"
-        >
+      <g transform="translate(30,32)" stroke="#fff" fill="none">
+        <circle r="20" strokeWidth="1.5" />
+        <path d="M0,-20 L3.5,-6 L0,0 L-3.5,-6 Z" fill="#fff" stroke="none" />
+        <text y="-26" textAnchor="middle" fontFamily="var(--font-sans)" fontSize="10" fill="#fff" stroke="none">
           N
         </text>
       </g>
     </svg>
   );
 }
-
-const MAP_PLATE_TEXT = "Gulf of Mexico · Tropical outlook chart · after the household tracking charts of New Orleans";
 
 export default function StormMap({ geo, mode, visibleModels, showRadar, onToggleRadar, otherStorms }: StormMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -279,19 +270,16 @@ export default function StormMap({ geo, mode, visibleModels, showRadar, onToggle
   return (
     <div className="gw-map-frame">
       <div ref={containerRef} className="gw-map" />
-      {mode === "quiet" && (
-        <>
-          <CompassRose />
-          <div className="plate">{MAP_PLATE_TEXT}</div>
-        </>
-      )}
+      <CompassRose />
+      <div className="map-attribution">{ESRI_ATTRIBUTION}</div>
       <button
         type="button"
         className={`radar-toggle${showRadar ? " on" : ""}`}
         aria-pressed={showRadar}
         onClick={onToggleRadar}
       >
-        RADAR {showRadar ? "ON" : "OFF"}
+        <span className="dot" />
+        Radar
       </button>
     </div>
   );

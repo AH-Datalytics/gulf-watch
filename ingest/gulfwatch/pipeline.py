@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from gulfwatch import adeck, aifs, blob, nhc, outlook, shp
+from gulfwatch import adeck, aifs, blob, nhc, outlook, probs, shp, text
 
 FETCH_TIMEOUT_S = 30
 RETRY_BACKOFF_S = 10
@@ -121,6 +121,8 @@ def _storm_paths(stormid: str) -> dict:
         "wwlines": f"{base}/wwlines.geojson",
         "models": f"{base}/models.geojson",
         "intensity": f"{base}/intensity.json",
+        "text": f"{base}/text.json",
+        "probs": f"{base}/probs.json",
     }
 
 
@@ -173,6 +175,45 @@ def _process_gis(storm, paths, fetch, store, errors):
             track_fc = fc
 
     return track_fc
+
+
+def _process_text_products(storm, paths, fetch, store, errors):
+    """Fetch+build+upload text.json (Forecast Discussion + Public Advisory)
+    and probs.json (wind speed probabilities) for one storm whose advisory
+    just changed.
+
+    text.json and probs.json are two independent products, each wrapped in
+    its own try/except and labeled "{storm.id}.text" / "{storm.id}.probs"
+    in manifest.errors -- one's failure (a missing URL field on this
+    storm's CurrentStorms.json entry, a bad fetch, or a parse error) must
+    never block the other's upload, same isolation guarantee as
+    cone/track/wwlines in _process_gis above.
+    """
+    try:
+        if not storm.discussion_url:
+            raise ValueError("forecastDiscussion.url missing from CurrentStorms.json")
+        if not storm.advisory_url:
+            raise ValueError("publicAdvisory.url missing from CurrentStorms.json")
+        discussion_resp = _fetch_with_retry(fetch, storm.discussion_url)
+        advisory_resp = _fetch_with_retry(fetch, storm.advisory_url)
+        text_json = text.build_text_json(
+            discussion_shtml=discussion_resp.text,
+            discussion_issued=storm.discussion_issued,
+            advisory_shtml=advisory_resp.text,
+            advisory_issued=storm.advisory_time,
+        )
+        store.put_json(paths["text"], text_json)
+    except Exception as exc:
+        errors.append({"product": f"{storm.id}.text", "message": str(exc)})
+
+    try:
+        if not storm.probs_url:
+            raise ValueError("windSpeedProbabilities.url missing from CurrentStorms.json")
+        probs_resp = _fetch_with_retry(fetch, storm.probs_url)
+        probs_json = probs.parse_probs(probs_resp.text)
+        store.put_json(paths["probs"], probs_json)
+    except Exception as exc:
+        errors.append({"product": f"{storm.id}.probs", "message": str(exc)})
 
 
 def _process_adeck(storm, paths, prev_cycle, fetch, store, errors):
@@ -266,6 +307,7 @@ def _process_storm(storm, prev_storm_state, fetch, store, errors):
     fresh_track_fc = None
     if advisory_changed:
         fresh_track_fc = _process_gis(storm, paths, fetch, store, errors)
+        _process_text_products(storm, paths, fetch, store, errors)
 
     new_cycle = _process_adeck(storm, paths, prev_cycle, fetch, store, errors)
 
@@ -295,6 +337,8 @@ def _process_storm(storm, prev_storm_state, fetch, store, errors):
             "wwlines": paths["wwlines"],
             "models": paths["models"],
             "intensity": paths["intensity"],
+            "text": paths["text"],
+            "probs": paths["probs"],
         },
     }
     next_state = {"advisory": storm.advisory_num, "cycle": new_cycle}

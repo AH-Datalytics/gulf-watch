@@ -66,7 +66,10 @@ export function ModelLegend({ visibleModels, onChange, cycleLabel, models }: Mod
 
   return (
     <div>
-      <div className="kicker">Guidance{cycleLabel ? ` — ${cycleLabel} Cycle` : ""}</div>
+      <div className="kicker">
+        Forecast models
+        {cycleLabel && <span className="issued"> · {cycleLabel} cycle</span>}
+      </div>
       <div className="models">
         {groups.map((group) => (
           <Fragment key={group.label}>

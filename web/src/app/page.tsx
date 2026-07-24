@@ -37,21 +37,18 @@ export default function Home() {
       )}
 
       <div className="masthead">
-        {dashboard.mode === "quiet" ? (
-          <>
-            <div className="title">
-              The <em>Gulf Watch</em> — a New Orleans tropical weather desk
-            </div>
-            <div className="org">AH Datalytics · Tropical Outlook</div>
-          </>
-        ) : (
-          <>
-            <div className="title">
-              The Gulf Watch <span>· New Orleans Tropical Weather Desk · AH Datalytics</span>
-            </div>
-            {hasHurricaneWarning && <div className="warnchip">Hurricane Warning in Effect</div>}
-          </>
-        )}
+        <div>
+          <div className="title">
+            The <em>Gulf Watch</em>
+            <span>
+              {dashboard.mode === "active" && dashboard.storm
+                ? `Tracking ${dashboard.storm.name} · New Orleans tropical weather desk`
+                : "a New Orleans tropical weather desk"}
+            </span>
+          </div>
+          <div className="org">AH Datalytics</div>
+        </div>
+        {hasHurricaneWarning && <div className="warnchip">Hurricane warning in effect</div>}
       </div>
 
       <div className="main">
@@ -62,6 +59,8 @@ export default function Home() {
           visibleModels={visibleModels}
           onVisibleModelsChange={setVisibleModels}
           models={dashboard.geo.models}
+          probs={dashboard.probs}
+          textProducts={dashboard.textProducts}
         />
         <div className="mapcol">
           <StormMap

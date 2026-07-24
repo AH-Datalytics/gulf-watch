@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { useMemo, useSyncExternalStore } from "react";
 import { BLOB_BASE, STALE_HOURS } from "./config";
-import type { Manifest, StormEntry, IntensitySeries, Mode } from "./types";
+import type { Manifest, StormEntry, IntensitySeries, Mode, ProbsEntry, StormTextProducts } from "./types";
 
 const DEMO_BASE = "/demo";
 
@@ -151,6 +151,13 @@ export interface DashboardData {
   };
   intensity: IntensitySeries | null;
   outlookText: { issued: string; text: string } | null;
+  /** storms/{id}/probs.json for the selected storm — null while loading (or
+   *  if the product failed to fetch/build for this advisory); see
+   *  WindProbabilities.tsx. */
+  probs: ProbsEntry[] | null;
+  /** storms/{id}/text.json for the selected storm — null while loading (or
+   *  if it failed); see ForecastDiscussion.tsx. */
+  textProducts: StormTextProducts | null;
   stale: boolean;
 }
 
@@ -204,6 +211,8 @@ export function useDashboard(): DashboardData {
   const wwlinesUrl = storm ? `${base}/${storm.files.wwlines}` : null;
   const modelsUrl = storm ? `${base}/${storm.files.models}` : null;
   const intensityUrl = storm ? `${base}/${storm.files.intensity}` : null;
+  const probsUrl = storm ? `${base}/${storm.files.probs}` : null;
+  const textUrl = storm ? `${base}/${storm.files.text}` : null;
   const outlookGeoUrl = manifest ? `${base}/${manifest.outlook.geojson}` : null;
   const outlookTextUrl = manifest ? `${base}/${manifest.outlook.text}` : null;
 
@@ -225,6 +234,8 @@ export function useDashboard(): DashboardData {
     intensityUrl,
     jsonFetcher
   );
+  const { data: probs } = useSWR<ProbsEntry[]>(probsUrl, jsonFetcher);
+  const { data: textProducts } = useSWR<StormTextProducts>(textUrl, jsonFetcher);
   const { data: outlookText } = useSWR<{ issued: string; text: string }>(
     outlookTextUrl,
     jsonFetcher
@@ -249,6 +260,8 @@ export function useDashboard(): DashboardData {
     },
     intensity: intensity ?? null,
     outlookText: outlookText ?? null,
+    probs: probs ?? null,
+    textProducts: textProducts ?? null,
     stale,
   };
 }

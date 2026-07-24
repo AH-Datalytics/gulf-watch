@@ -20,12 +20,23 @@ CURRENT_STORMS_JSON = json.loads((FIXTURES / "current_storms.json").read_text())
 SAMPLE_CONE_ZIP = (FIXTURES / "sample_cone.zip").read_bytes()
 GTWO_ZIP = (FIXTURES / "gtwo_shapefiles.zip").read_bytes()
 INDEX_AT_XML = (FIXTURES / "index-at.xml").read_text(encoding="utf-8")
+BERTHA_DISCUSSION_SHTML = (FIXTURES / "bertha_discussion.shtml").read_text(encoding="utf-8")
+BERTHA_PUBLIC_ADVISORY_SHTML = (FIXTURES / "bertha_public_advisory.shtml").read_text(
+    encoding="utf-8"
+)
+BERTHA_PWS_SHTML = (FIXTURES / "bertha_pws.shtml").read_text(encoding="utf-8")
 
 # Bertha (al022026): the only Atlantic/Gulf storm in current_storms.json,
 # real advisory-14a data with cone/track/wwlines all pointing at the same
 # bundled "5day" zip -- see task-nhc.py's own tests for the raw values.
 BERTHA_GIS_URL = "https://www.nhc.noaa.gov/gis/forecast/archive/al022026_5day_014A.zip"
 BERTHA_ADECK_URL = ADECK_URL_TEMPLATE.format(stormid="al022026")
+
+# Bertha's text-product URLs, from the current_storms.json fixture's
+# forecastDiscussion/publicAdvisory/windSpeedProbabilities fields.
+BERTHA_DISCUSSION_URL = "https://www.nhc.noaa.gov/text/MIATCDAT2.shtml"
+BERTHA_ADVISORY_URL = "https://www.nhc.noaa.gov/text/MIATCPAT2.shtml"
+BERTHA_PROBS_URL = "https://www.nhc.noaa.gov/text/MIAPWSAT2.shtml"
 
 # The TWO RSS item's pubDate in the committed index-at.xml fixture (see
 # test_outlook.py's test_real_fixture_issued_parses_to_iso8601).
@@ -128,6 +139,14 @@ def _outlook_routes():
     }
 
 
+def _bertha_text_product_routes():
+    return {
+        BERTHA_DISCUSSION_URL: FakeResponse(text=BERTHA_DISCUSSION_SHTML),
+        BERTHA_ADVISORY_URL: FakeResponse(text=BERTHA_PUBLIC_ADVISORY_SHTML),
+        BERTHA_PROBS_URL: FakeResponse(text=BERTHA_PWS_SHTML),
+    }
+
+
 @pytest.fixture(autouse=True)
 def no_real_sleep(monkeypatch):
     # Never actually sleep 10s in tests, even when a retry path is hit.
@@ -175,6 +194,7 @@ def test_active_path_all_five_storm_files_uploaded_and_state_advanced():
         BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
     }
     routes.update(_outlook_routes())
+    routes.update(_bertha_text_product_routes())
     fetch = FakeFetch(routes)
     store = FakeStore()
 
@@ -205,10 +225,26 @@ def test_active_path_all_five_storm_files_uploaded_and_state_advanced():
         "wwlines": "storms/al022026/wwlines.geojson",
         "models": "storms/al022026/models.geojson",
         "intensity": "storms/al022026/intensity.json",
+        "text": "storms/al022026/text.json",
+        "probs": "storms/al022026/probs.json",
     }
 
     for path in bertha["files"].values():
         assert path in store.put_calls
+
+    text_json = store.data["storms/al022026/text.json"]
+    assert set(text_json.keys()) == {"discussion", "publicAdvisory"}
+    assert text_json["discussion"]["issued"] == "2026-07-22T21:00:00Z"
+    assert text_json["discussion"]["text"].startswith(
+        "Tropical Storm Bertha Discussion Number  18"
+    )
+    assert text_json["publicAdvisory"]["issued"] == "2026-07-23T00:00:00Z"
+    assert text_json["publicAdvisory"]["text"].startswith("BULLETIN")
+
+    # Bertha made landfall in Texas, west of Louisiana -- none of our 5
+    # whitelisted Gulf Coast points legitimately appear in this real PWS
+    # fixture's table. Empty array is the correct, expected result.
+    assert store.data["storms/al022026/probs.json"] == []
 
     cone_fc = store.data["storms/al022026/cone.geojson"]
     assert {f["properties"]["shapefile"] for f in cone_fc["features"]} == {
@@ -287,11 +323,16 @@ def test_no_change_path_same_advisory_and_cycle_skips_storm_uploads():
         "storms/al022026/wwlines.geojson",
         "storms/al022026/models.geojson",
         "storms/al022026/intensity.json",
+        "storms/al022026/text.json",
+        "storms/al022026/probs.json",
     }
     assert not (storm_upload_paths & set(store.put_calls))
     assert "outlook.geojson" not in store.put_calls
     assert "outlook.json" not in store.put_calls
     assert BERTHA_GIS_URL not in fetch.calls
+    assert BERTHA_DISCUSSION_URL not in fetch.calls
+    assert BERTHA_ADVISORY_URL not in fetch.calls
+    assert BERTHA_PROBS_URL not in fetch.calls
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +368,7 @@ def test_error_path_cone_failure_still_uploads_other_products():
         BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
     }
     routes.update(_outlook_routes())
+    routes.update(_bertha_text_product_routes())
     fetch = FakeFetch(routes, raising={cone_url})
     store = FakeStore()
 
@@ -341,6 +383,8 @@ def test_error_path_cone_failure_still_uploads_other_products():
     assert "storms/al022026/models.geojson" in store.put_calls
     assert "storms/al022026/intensity.json" in store.put_calls
     assert "storms/al022026/cone.geojson" not in store.put_calls
+    assert "storms/al022026/text.json" in store.put_calls
+    assert "storms/al022026/probs.json" in store.put_calls
 
     bertha = manifest["storms"][0]
     # Resolved via storm.lat/lon (29.5, -90.5) directly -- storm_in_gulf
@@ -396,6 +440,7 @@ def test_shared_gis_url_failure_dedupes_fetch_attempts():
         BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
     }
     routes.update(_outlook_routes())
+    routes.update(_bertha_text_product_routes())
     # Bertha's cone/track/wwlines gis_urls all point at BERTHA_GIS_URL in the
     # fixture -- make that one shared URL fail.
     fetch = FakeFetch(routes, raising={BERTHA_GIS_URL})
@@ -434,6 +479,7 @@ def test_adeck_models_and_intensity_upload_failures_labeled_separately():
         BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
     }
     routes.update(_outlook_routes())
+    routes.update(_bertha_text_product_routes())
     fetch = FakeFetch(routes)
 
     manifest = run(fetch=fetch, store=store)
@@ -498,6 +544,7 @@ def test_aifs_failure_degrades_gracefully_and_still_produces_full_manifest(monke
         BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
     }
     routes.update(_outlook_routes())
+    routes.update(_bertha_text_product_routes())
     fetch = FakeFetch(routes)
     store = FakeStore()
 
@@ -520,3 +567,86 @@ def test_aifs_failure_degrades_gracefully_and_still_produces_full_manifest(monke
     # with no AIFS features concatenated in, since the fetch raised.
     models_fc = store.data["storms/al022026/models.geojson"]
     assert {f["properties"]["model"] for f in models_fc["features"]} == {"OFCL"}
+
+
+# ---------------------------------------------------------------------------
+# text.json/probs.json error isolation: one of the three sub-fetches
+# (discussion/advisory/probs) failing must not block the other product's
+# upload -- text.json and probs.json are two independently try/excepted
+# products (see pipeline.py's _process_text_products), same isolation
+# guarantee as cone/track/wwlines above.
+# ---------------------------------------------------------------------------
+
+
+def test_text_product_error_isolation_discussion_failure_still_uploads_probs():
+    routes = {
+        nhc.CURRENT_STORMS_URL: FakeResponse(json_data=CURRENT_STORMS_JSON),
+        BERTHA_GIS_URL: FakeResponse(content=SAMPLE_CONE_ZIP),
+        BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
+    }
+    routes.update(_outlook_routes())
+    routes.update(_bertha_text_product_routes())
+    # Discussion fetch fails -- this must take down text.json only (both
+    # attempts exhausted, per the one-retry policy), never probs.json.
+    fetch = FakeFetch(routes, raising={BERTHA_DISCUSSION_URL})
+    store = FakeStore()
+
+    manifest = run(fetch=fetch, store=store)
+
+    assert manifest["errors"] == [
+        {
+            "product": "al022026.text",
+            "message": f"simulated network failure: {BERTHA_DISCUSSION_URL}",
+        }
+    ]
+
+    assert "storms/al022026/text.json" not in store.put_calls
+    assert "storms/al022026/probs.json" in store.put_calls
+    assert store.data["storms/al022026/probs.json"] == []
+
+    # The rest of the manifest/run still completed normally.
+    assert manifest["mode"] == "active"
+    for path in (
+        "storms/al022026/cone.geojson",
+        "storms/al022026/track.geojson",
+        "storms/al022026/wwlines.geojson",
+        "storms/al022026/models.geojson",
+        "storms/al022026/intensity.json",
+    ):
+        assert path in store.put_calls
+
+    # Discussion URL retried once before giving up (30s/one-retry policy).
+    assert fetch.calls.count(BERTHA_DISCUSSION_URL) == 2
+    # Advisory fetch never even attempted -- the discussion fetch (the
+    # first of the two text.json fetches) already failed and raised before
+    # the advisory fetch would run.
+    assert BERTHA_ADVISORY_URL not in fetch.calls
+
+
+def test_text_product_missing_url_field_records_error_not_crash():
+    # A storm entry whose forecastDiscussion is None (as some real entries
+    # are, e.g. peakSurgeKML on Fausto in current_storms.json) must record
+    # a per-sub-product error rather than crashing the whole run.
+    bertha_raw = dict(CURRENT_STORMS_JSON["activeStorms"][0])
+    storms_json = {
+        "activeStorms": [{**bertha_raw, "forecastDiscussion": None}],
+    }
+    routes = {
+        nhc.CURRENT_STORMS_URL: FakeResponse(json_data=storms_json),
+        BERTHA_GIS_URL: FakeResponse(content=SAMPLE_CONE_ZIP),
+        BERTHA_ADECK_URL: FakeResponse(content=_adeck_gz(BERTHA_ADECK_TEXT)),
+    }
+    routes.update(_outlook_routes())
+    routes.update(_bertha_text_product_routes())
+    fetch = FakeFetch(routes)
+    store = FakeStore()
+
+    manifest = run(fetch=fetch, store=store)
+
+    error_products = {e["product"] for e in manifest["errors"]}
+    assert "al022026.text" in error_products
+    assert "storms/al022026/text.json" not in store.put_calls
+    assert "storms/al022026/probs.json" in store.put_calls
+    # discussion_url is empty for this storm -- must never even attempt to
+    # fetch it.
+    assert BERTHA_DISCUSSION_URL not in fetch.calls

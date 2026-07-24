@@ -1,14 +1,14 @@
-// Self-contained MapLibre cartography for The Gulf Watch — no tile provider.
-// Land polygons are a pre-clipped local GeoJSON (web/public/geo/gulf_land.json,
-// see scripts/clip-land.mjs). The graticule is generated in-code. All colors
+// Self-contained MapLibre cartography for The Gulf Watch — v2 uses a real
+// satellite basemap (Esri World Imagery raster tiles + an Esri reference-label
+// overlay) instead of the old flat land/water polygon fill, per
+// docs/superpowers/specs/2026-07-24-v2-redesign-addendum.md. The graticule is
+// still generated in-code (no dependency on any land geometry). All colors
 // for the layers below come from the CSS design tokens in globals.css (read
-// via getComputedStyle so both modes restyle from one source of truth) —
-// EXCEPT the watch/warning line colors, which per the task brief are four
-// fixed hex values that don't change between modes.
+// via getComputedStyle, one light theme only now — no more per-mode
+// branching) — EXCEPT the watch/warning line colors, which per the task
+// brief are four fixed hex values.
 
 import type { StyleSpecification, Map as MapLibreMap } from "maplibre-gl";
-
-export const GULF_LAND_URL = "/geo/gulf_land.json";
 
 /** New Orleans marker location (fixed point of reference on both maps). */
 export const NOLA_LNGLAT: [number, number] = [-90.07, 29.95];
@@ -19,14 +19,21 @@ export const INITIAL_BOUNDS: [[number, number], [number, number]] = [
   [-80, 31],
 ];
 
+// Esri World Imagery (satellite/terrain) + reference labels overlay, per the
+// v2 addendum. Attribution is rendered manually (StormMap.tsx's
+// .map-attribution overlay) since the map itself has attributionControl:
+// false.
+export const ESRI_IMAGERY_TILE_URL =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+export const ESRI_LABELS_TILE_URL =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+export const ESRI_ATTRIBUTION = "Esri, Maxar, Earthstar Geographics";
+
 // ---------------------------------------------------------------------------
-// Mode tokens
+// Design tokens (single light theme)
 // ---------------------------------------------------------------------------
 
 export interface ModeColors {
-  water: string;
-  land: string;
-  coast: string;
   grid: string;
   gridLabel: string;
   accent: string;
@@ -39,29 +46,23 @@ export interface ModeColors {
 }
 
 const FALLBACK_COLORS: ModeColors = {
-  water: "#f4efe3",
-  land: "#eae1ca",
-  coast: "#6b5d45",
-  grid: "#ddd2b8",
-  gridLabel: "#b0a385",
+  grid: "rgba(255, 255, 255, 0.45)",
+  gridLabel: "rgba(255, 255, 255, 0.92)",
   accent: "#1f3a5f",
-  accent2: "#1f3a5f",
-  warnHw: "#b3402e",
-  warnSsw: "#d97b29",
-  warnTsw: "#1f3a5f",
+  accent2: "#c2703d",
+  warnHw: "#c0392b",
+  warnSsw: "#8e44ad",
+  warnTsw: "#2f6fae",
   outlookLow: "#d97b29",
   outlookHigh: "#b3402e",
 };
 
-/** Reads the current --token values off <html> (server/non-DOM callers get the quiet fallback). */
+/** Reads the current --token values off <html> (server/non-DOM callers get the fallback). */
 export function readModeColors(): ModeColors {
   if (typeof document === "undefined") return FALLBACK_COLORS;
   const cs = getComputedStyle(document.documentElement);
   const read = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
   return {
-    water: read("--water", FALLBACK_COLORS.water),
-    land: read("--land", FALLBACK_COLORS.land),
-    coast: read("--coast", FALLBACK_COLORS.coast),
     grid: read("--grid", FALLBACK_COLORS.grid),
     gridLabel: read("--grid-label", FALLBACK_COLORS.gridLabel),
     accent: read("--accent", FALLBACK_COLORS.accent),
@@ -354,19 +355,21 @@ export const RADAR_TILE_URL =
   "https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=nexrad-n0q&STYLES=&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true";
 
 export const LAYER_IDS = {
-  background: "gw-background",
-  landFill: "gw-land-fill",
-  landLine: "gw-land-line",
+  imagery: "gw-imagery",
+  labels: "gw-labels",
   graticule: "gw-graticule",
   outlookFill: "gw-outlook-fill",
   outlookLine: "gw-outlook-line",
   coneFill: "gw-cone-fill",
+  coneLineCasing: "gw-cone-line-casing",
   coneLine: "gw-cone-line",
   otherConesFill: "gw-other-cones-fill",
+  otherConesLineCasing: "gw-other-cones-line-casing",
   otherConesLine: "gw-other-cones-line",
   wwlines: "gw-wwlines",
   modelsSolid: "gw-models-solid",
   modelsDashed: "gw-models-dashed",
+  trackLineCasing: "gw-track-line-casing",
   trackLine: "gw-track-line",
   trackPoints: "gw-track-points",
   trackNow: "gw-track-now",
@@ -374,7 +377,8 @@ export const LAYER_IDS = {
 } as const;
 
 export const SOURCE_IDS = {
-  land: "gw-land",
+  imagery: "gw-imagery",
+  labels: "gw-labels",
   graticule: "gw-graticule",
   outlook: "gw-outlook",
   cone: "gw-cone",
@@ -394,7 +398,18 @@ export function buildInitialStyle(): StyleSpecification {
   return {
     version: 8,
     sources: {
-      [SOURCE_IDS.land]: { type: "geojson", data: GULF_LAND_URL },
+      [SOURCE_IDS.imagery]: {
+        type: "raster",
+        tiles: [ESRI_IMAGERY_TILE_URL],
+        tileSize: 256,
+        attribution: ESRI_ATTRIBUTION,
+      },
+      [SOURCE_IDS.labels]: {
+        type: "raster",
+        tiles: [ESRI_LABELS_TILE_URL],
+        tileSize: 256,
+        attribution: ESRI_ATTRIBUTION,
+      },
       [SOURCE_IDS.graticule]: { type: "geojson", data: graticule.lines },
       [SOURCE_IDS.outlook]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.cone]: { type: "geojson", data: EMPTY_FC },
@@ -411,21 +426,14 @@ export function buildInitialStyle(): StyleSpecification {
     },
     layers: [
       {
-        id: LAYER_IDS.background,
-        type: "background",
-        paint: { "background-color": c.water },
+        id: LAYER_IDS.imagery,
+        type: "raster",
+        source: SOURCE_IDS.imagery,
       },
       {
-        id: LAYER_IDS.landFill,
-        type: "fill",
-        source: SOURCE_IDS.land,
-        paint: { "fill-color": c.land },
-      },
-      {
-        id: LAYER_IDS.landLine,
-        type: "line",
-        source: SOURCE_IDS.land,
-        paint: { "line-color": c.coast, "line-width": 1.2 },
+        id: LAYER_IDS.labels,
+        type: "raster",
+        source: SOURCE_IDS.labels,
       },
       {
         id: LAYER_IDS.graticule,
@@ -449,19 +457,30 @@ export function buildInitialStyle(): StyleSpecification {
           "line-dasharray": [5, 4],
         },
       },
+      // Cone fill is a plain white haze (reads as a highlighted region over
+      // ANY satellite imagery brightness, unlike a navy fill which nearly
+      // vanished into the imagery's own dark-blue water) with a dark-cased
+      // white dashed outline — the same casing technique as the track line
+      // below, so the cone stays legible over open water, cloud, and land.
       {
         id: LAYER_IDS.coneFill,
         type: "fill",
         source: SOURCE_IDS.cone,
-        paint: { "fill-color": c.accent, "fill-opacity": 0.1 },
+        paint: { "fill-color": "#ffffff", "fill-opacity": 0.22 },
+      },
+      {
+        id: LAYER_IDS.coneLineCasing,
+        type: "line",
+        source: SOURCE_IDS.cone,
+        paint: { "line-color": "#1c2024", "line-width": 3.4, "line-opacity": 0.55 },
       },
       {
         id: LAYER_IDS.coneLine,
         type: "line",
         source: SOURCE_IDS.cone,
         paint: {
-          "line-color": c.accent,
-          "line-width": 1.2,
+          "line-color": "#ffffff",
+          "line-width": 1.6,
           "line-dasharray": [6, 4],
         },
       },
@@ -472,14 +491,20 @@ export function buildInitialStyle(): StyleSpecification {
         id: LAYER_IDS.otherConesFill,
         type: "fill",
         source: SOURCE_IDS.otherCones,
-        paint: { "fill-color": c.accent, "fill-opacity": 0.1 },
+        paint: { "fill-color": "#ffffff", "fill-opacity": 0.15 },
+      },
+      {
+        id: LAYER_IDS.otherConesLineCasing,
+        type: "line",
+        source: SOURCE_IDS.otherCones,
+        paint: { "line-color": "#1c2024", "line-width": 2.6, "line-opacity": 0.45 },
       },
       {
         id: LAYER_IDS.otherConesLine,
         type: "line",
         source: SOURCE_IDS.otherCones,
         paint: {
-          "line-color": c.accent,
+          "line-color": "#ffffff",
           "line-width": 1.2,
           "line-dasharray": [6, 4],
         },
@@ -513,6 +538,18 @@ export function buildInitialStyle(): StyleSpecification {
           "line-dasharray": [2, 2],
         },
       },
+      // Dark casing under the white official track — satellite imagery's
+      // brightness varies a lot (open water vs. cloud vs. land), so a plain
+      // white line alone can wash out over bright cloud tops; a thin dark
+      // outline underneath keeps it readable everywhere, the same
+      // "casing" technique real map apps use for a route line over imagery.
+      {
+        id: LAYER_IDS.trackLineCasing,
+        type: "line",
+        source: SOURCE_IDS.track,
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: { "line-color": "#1c2024", "line-width": 4.2 },
+      },
       {
         id: LAYER_IDS.trackLine,
         type: "line",
@@ -528,6 +565,8 @@ export function buildInitialStyle(): StyleSpecification {
         paint: {
           "circle-color": "#ffffff",
           "circle-radius": 4.5,
+          "circle-stroke-color": "#1c2024",
+          "circle-stroke-width": 1.2,
         },
       },
       {
@@ -557,15 +596,12 @@ export function buildInitialStyle(): StyleSpecification {
   };
 }
 
-/** Re-reads CSS tokens and restyles the mode-dependent, non-data-driven layers. Call on mode change. */
+/** Re-reads CSS tokens and restyles the token-driven, non-data-driven layers.
+ *  Kept as a no-op-safe function (rather than removed outright) since v2 is a
+ *  single light theme — there's no mode-driven recolor left to do, but
+ *  StormMap.tsx still calls this on every mount, so it stays cheap and
+ *  correct if a token ever changes at runtime. */
 export function applyModeColors(map: MapLibreMap): void {
   const c = readModeColors();
-  map.setPaintProperty(LAYER_IDS.background, "background-color", c.water);
-  map.setPaintProperty(LAYER_IDS.landFill, "fill-color", c.land);
-  map.setPaintProperty(LAYER_IDS.landLine, "line-color", c.coast);
   map.setPaintProperty(LAYER_IDS.graticule, "line-color", c.grid);
-  map.setPaintProperty(LAYER_IDS.coneFill, "fill-color", c.accent);
-  map.setPaintProperty(LAYER_IDS.coneLine, "line-color", c.accent);
-  map.setPaintProperty(LAYER_IDS.otherConesFill, "fill-color", c.accent);
-  map.setPaintProperty(LAYER_IDS.otherConesLine, "line-color", c.accent);
 }

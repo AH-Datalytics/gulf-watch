@@ -1,130 +1,54 @@
-/* Design tokens for The Gulf Watch — two-mood system.
-   Every hex value below is copied verbatim from
-   docs/superpowers/specs/two-moods-v2-mockup.html (the approved mockup):
-     .quiet block  -> [data-mode="quiet"]
-     .active block -> [data-mode="active"]
-   See .superpowers/sdd/task-7-report.md for the selector -> token mapping table. */
+/* Design tokens for The Gulf Watch — v2: one light, editorial "lived-in
+   product" look (see docs/superpowers/specs/2026-07-24-v2-redesign-addendum.md).
+   The old two-mood dark/light system is gone; `mode` (quiet vs. active) now
+   switches CONTENT ONLY (page.tsx / Rail.tsx), never color. Register
+   directive: mixed-case plain-language labels, no HUD/terminal aesthetics,
+   generous whitespace, minimal rules, calm neutrals with warning colors
+   reserved for actual warnings. */
 
 :root {
-  /* Fallback tokens (quiet, the "no active systems" default) — used for the
-     first server-rendered paint before the client sets data-mode. */
-  --bg: #f4efe3;
-  --panel: #f1ebdc;
-  --ink: #2b241a;
-  --ink-dim: #8a7a5c;
+  --bg: #f7f4ec;
+  --panel: #ffffff;
+  --panel-muted: #f2eee1;
+  --ink: #23262b;
+  --ink-dim: #6b7280;
+  --body-text: #3a3f46;
+  --title: #1c2024;
   --accent: #1f3a5f;
-  --accent-2: #1f3a5f;
-  --rule: #d8cdb4;
-  --water: #f4efe3;
-  --land: #eae1ca;
-  --coast: #6b5d45;
-  --grid: #ddd2b8;
-  --grid-label: #b0a385;
-  --ok: #5a7d54;
-  --warn-hw: #b3402e;
-  --warn-ssw: #d97b29;
-  --warn-tsw: #1f3a5f;
-  /* Genesis-area (outlook) fill colors — deliberately their OWN tokens, not
-     aliases of --warn-*: those are watch/warning severity colors (used by
-     Alerts.tsx), while these are NHC gtwo RISK7DAY colors (used by
-     mapStyle.ts's outlookColor()). They happen to reuse the mockup's hatch
-     hexes in quiet mode, but conflating them with --warn-ssw previously made
-     a low-risk genesis area render in storm-surge-warning purple in active
-     mode — see task-8-report.md's fix-round notes. */
+  --accent-2: #c2703d;
+  --rule: #e4ded0;
+
+  /* Graticule over satellite imagery — translucent white, needs a dark halo
+     (applied per-label below) to stay legible over both bright water and
+     dark land in the imagery. */
+  --grid: rgba(255, 255, 255, 0.45);
+  --grid-label: rgba(255, 255, 255, 0.92);
+
+  /* Watch/warning severity colors (Alerts.tsx) — standard NHC-adjacent
+     meanings, reserved for actual warnings only. */
+  --warn-hw: #c0392b;
+  --warn-ssw: #8e44ad;
+  --warn-tsw: #2f6fae;
+
+  /* Genesis-area (outlook) fill colors — NHC gtwo RISK7DAY, a different
+     semantic axis from --warn-* (see mapStyle.ts's outlookColor()). */
   --outlook-low: #d97b29;
   --outlook-high: #b3402e;
-  /* Staleness/alarm banner — its own token (not --warn-ssw, which is
-     storm-surge purple in active mode and produced exactly this task's
-     off-palette bug the first time). Amber in quiet, muted red in active. */
-  --stale: #d97b29;
-  --body-text: #4a4131;
-  --title: #2b241a;
-  /* Tide-gauge predicted-band fill (Gauges.tsx / Task 10). Its own token —
-     not an alias of --land/--panel — because the mockup's gauge <rect> fills
-     (#e5dcc6 quiet, #13223c active) are darker/lighter than those tokens'
-     values and don't line up with any existing one. */
-  --gauge-band: #e5dcc6;
-  /* Intensity panel (Task 11) category-ladder band fills — copied verbatim
-     from the mockup's .ipanel <rect> fills (docs/superpowers/specs/two-moods-v2-mockup.html).
-     The panel is active-mode only (it never renders in quiet mode), so the
-     quiet/root values below simply mirror the active ones rather than
-     defining a separate quiet palette. --band-3 is reused for the CAT 4/CAT 5
-     bands too — the mockup itself only defines four distinct fills. */
-  --band-ts: #101f38;
-  --band-1: #13233f;
-  --band-2: #162846;
-  --band-3: #1a2c4d;
-  /* Active-mode tide-gauge name/label color (Task 12 review carry-over) — the
-     mockup's `.active .gauge .name` is a literal #b3c1d6, distinct from (and
-     lighter/more legible against navy than) --ink-dim's #5f7495. Quiet/root
-     mirror the active value per this file's existing convention for
-     active-only chart furniture (see --band-* above); quiet's actual gauge
-     name color still comes from --body-text via the mode-agnostic base
-     `.gauge .name` rule, so this token is inert there. */
-  --gauge-label-dim: #b3c1d6;
+
+  /* Staleness banner. */
+  --stale: #b5651d;
+
+  /* Intensity panel category-ladder band fills — light theme: pale-to-deeper
+     blue wash, dark text reads on all of them. --band-3 is reused for CAT
+     4/CAT 5 too (same as the old system). */
+  --band-ts: #eef3f8;
+  --band-1: #dee9f4;
+  --band-2: #c7dbee;
+  --band-3: #abc6e2;
+
   --font-serif: Georgia, "Times New Roman", serif;
   --font-sans: "Segoe UI", system-ui, sans-serif;
   --font-mono: Consolas, monospace;
-}
-
-[data-mode="quiet"] {
-  --bg: #f4efe3;
-  --panel: #f1ebdc;
-  --ink: #2b241a;
-  --ink-dim: #8a7a5c;
-  --accent: #1f3a5f;
-  --accent-2: #1f3a5f;
-  --rule: #d8cdb4;
-  --water: #f4efe3;
-  --land: #eae1ca;
-  --coast: #6b5d45;
-  --grid: #ddd2b8;
-  --grid-label: #b0a385;
-  --ok: #5a7d54;
-  --warn-hw: #b3402e;
-  --warn-ssw: #d97b29;
-  --warn-tsw: #1f3a5f;
-  --outlook-low: #d97b29;
-  --outlook-high: #b3402e;
-  --stale: #d97b29;
-  --body-text: #4a4131;
-  --title: #2b241a;
-  --gauge-band: #e5dcc6;
-  --band-ts: #101f38;
-  --band-1: #13233f;
-  --band-2: #162846;
-  --band-3: #1a2c4d;
-  --gauge-label-dim: #b3c1d6;
-}
-
-[data-mode="active"] {
-  --bg: #0d1830;
-  --panel: #0b1424;
-  --ink: #d5deed;
-  --ink-dim: #5f7495;
-  --accent: #e9c46a;
-  --accent-2: #ff9a5c;
-  --rule: #1d3050;
-  --water: #0d1830;
-  --land: #1a2a49;
-  --coast: #33507e;
-  --grid: #14213a;
-  --grid-label: #5f7495;
-  --ok: #5a7d54;
-  --warn-hw: #d94141;
-  --warn-ssw: #b04fd6;
-  --warn-tsw: #4a7fd4;
-  --outlook-low: #d97b29;
-  --outlook-high: #b3402e;
-  --stale: #b3402e;
-  --body-text: #d5deed;
-  --title: #ffffff;
-  --gauge-band: #13223c;
-  --band-ts: #101f38;
-  --band-1: #13233f;
-  --band-2: #162846;
-  --band-3: #1a2c4d;
-  --gauge-label-dim: #b3c1d6;
 }
 
 html {
@@ -157,20 +81,13 @@ a {
   text-decoration: none;
 }
 
-/* Tabular numerals for stats, per spec — never let digits shift width. */
+/* Tabular numerals for stats — never let digits shift width. Applied
+   narrowly to genuinely numeric figures, not whole lines of prose. */
 .num {
   font-variant-numeric: tabular-nums;
 }
 
-/* ============ Page shell: masthead + rail + map column (mockup .masthead/.main/.rail/.mapcol) ============
-   Desktop (>820px) is a viewport app: .app-shell is pinned to exactly 100dvh
-   with no document scroll, so .main's flex children (rail / mapcol) must
-   fit within that fixed height themselves — the rail scrolls internally
-   (overflow-y: auto, already set below) and mapcol's map+intensity-panel
-   split the remaining height, rather than the intensity panel getting pushed
-   below the viewport by an ever-growing document (see task-12-report.md).
-   ≤820px reverts to normal document flow (mobile keeps the page scrollable;
-   see the media query at the bottom of this section). */
+/* ============ Page shell: masthead + rail + map column ============ */
 .app-shell {
   display: flex;
   flex-direction: column;
@@ -185,15 +102,15 @@ a {
 }
 
 .rail {
-  width: 330px;
+  width: 350px;
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 26px;
   overflow-y: auto;
   border-right: 1px solid var(--rule);
   background: var(--panel);
-  padding: 18px 20px;
+  padding: 22px 24px;
 }
 
 .mapcol {
@@ -204,27 +121,12 @@ a {
   position: relative;
 }
 
-/* .gw-map-frame is the map's own box — exactly the space StormMap occupies,
-   NOT including the intensity panel below it (.ipanel is mapcol's OTHER flex
-   child, a sibling of this frame, not a descendant). Overlays that should
-   anchor to the map itself (radar toggle, quiet-mode compass rose + plate
-   caption) are rendered as children of this frame so their `position:
-   absolute` offsets are relative to the map's box specifically — anchoring
-   them to .mapcol instead (the previous approach) put them in .mapcol's full
-   height, including the panel, and made a bottom-right overlay intrude into
-   the panel's bottom-right corner in active mode (see StormMap.tsx). */
 .gw-map-frame {
   flex: 1;
   position: relative;
-  /* A small floor rather than the old 480px: with .app-shell now a real
-     100dvh container (instead of min-height: 100vh, which let the document
-     grow past the viewport), a tall floor here could itself force overflow
-     on short-but-valid desktop windows once the 180px intensity panel is
-     added back in. */
   min-height: 240px;
 }
 
-/* The actual MapLibre container — fills its .gw-map-frame wrapper exactly. */
 .gw-map {
   width: 100%;
   height: 100%;
@@ -241,9 +143,6 @@ a {
     flex-direction: column;
   }
 
-  /* Map first, rail below — the mockup's rail-then-mapcol DOM order is kept
-     (rail content, e.g. storm header, should still be the first thing a
-     screen reader/keyboard user reaches), but visually the map leads. */
   .mapcol {
     order: 1;
   }
@@ -269,17 +168,16 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 22px 12px;
-  border-bottom: 2px solid var(--ink);
-}
-
-[data-mode="quiet"] .masthead {
-  font-family: var(--font-serif);
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .masthead .title {
   font-family: var(--font-serif);
-  font-size: 24px;
+  font-size: 21px;
   color: var(--title);
 }
 
@@ -288,61 +186,41 @@ a {
   color: var(--accent);
 }
 
-.masthead .org {
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--coast);
-}
-
-[data-mode="active"] .masthead {
-  padding: 10px 22px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--rule);
-}
-
-[data-mode="active"] .masthead .title {
+.masthead .title span {
   font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--title);
-}
-
-[data-mode="active"] .masthead .title span {
-  /* Mockup doesn't reset text-transform/letter-spacing on the span — the
-     whole title (incl. this span) renders uppercase, differentiated from
-     "THE GULF WATCH" only by color/weight. */
+  font-size: 14px;
   color: var(--ink-dim);
   font-weight: 400;
+  margin-left: 6px;
+}
+
+.masthead .org {
+  font-size: 12px;
+  color: var(--ink-dim);
 }
 
 .masthead .warnchip {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 600;
   background: var(--warn-hw);
   color: #fff;
-  padding: 4px 10px;
+  padding: 6px 14px;
+  border-radius: 6px;
 }
 
 /* ============ Staleness banner ============ */
 .stale-banner {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: 13px;
   color: #fff;
   background: var(--stale);
-  padding: 6px 22px;
+  padding: 8px 22px;
   text-align: center;
 }
 
-/* ============ Rail content — quiet (heirloom chart) ============ */
-[data-mode="quiet"] .status {
+/* ============ Rail content — quiet (no active systems) ============ */
+.status {
   font-family: var(--font-serif);
-  font-size: 17px;
+  font-size: 18px;
   color: var(--title);
 }
 
@@ -351,124 +229,113 @@ a {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--ok);
-  margin-right: 7px;
+  background: #5a7d54;
+  margin-right: 8px;
 }
 
 .issued {
-  font-size: 10.5px;
+  font-size: 12.5px;
   color: var(--ink-dim);
   margin-top: 6px;
-  font-family: var(--font-mono);
 }
 
+/* Section heading — plain-language, mixed case, no letter-spacing/caps.
+   Whitespace does the separating work; no rule under most of these. */
 .kicker {
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-  border-bottom: 1px solid var(--rule);
-  padding-bottom: 4px;
-  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--title);
+  margin-bottom: 10px;
 }
 
 .body-text {
-  font-size: 12.5px;
-  line-height: 1.55;
+  font-size: 13.5px;
+  line-height: 1.65;
   color: var(--body-text);
 }
 
-/* ============ Rail content — active (operations desk) ============ */
-[data-mode="active"] .kicker {
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-}
-
+/* ============ Rail content — storm header ============ */
 .storm-name {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 26px;
+  font-weight: 600;
   color: var(--title);
+  line-height: 1.25;
 }
 
 .cat {
   display: inline-block;
   background: var(--accent);
-  color: #161006;
-  font-weight: 800;
-  font-size: 12px;
-  padding: 2px 8px;
-  margin-left: 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 5px;
+  margin-left: 10px;
   vertical-align: 3px;
 }
 
 .stats {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .stats > div {
-  background: #0f1c33;
-  padding: 7px 9px;
+  background: var(--panel-muted);
+  border-radius: 6px;
+  padding: 10px 12px;
 }
 
 .stats .l {
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 12px;
   color: var(--ink-dim);
 }
 
 .stats .v {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--title);
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .stats .unit {
-  font-size: 10px;
-  color: #8ca0bf;
+  font-size: 12px;
+  color: var(--ink-dim);
+  font-weight: 400;
 }
 
 .adv {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: #8ca0bf;
-  margin-top: 9px;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin-top: 12px;
+  line-height: 1.5;
 }
 
 .adv b {
   color: var(--accent);
+  font-weight: 600;
 }
 
-/* .alert renders in both modes (quiet shows it only when non-tropical NWS
-   alerts happen to be active) — unlike .stats/.adv above, which are
-   StormHeader-only (active mode only), so its colors must be token-based
-   rather than the mockup's active-only literal navy. */
+/* .alert renders in both content modes (quiet shows it only when non-tropical
+   NWS alerts happen to be active). */
 .alert {
   border-left: 3px solid var(--rule);
-  padding: 6px 9px;
-  margin-bottom: 6px;
-  background: var(--panel);
-  font-size: 11.5px;
-  line-height: 1.4;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--panel-muted);
+  border-radius: 0 6px 6px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .alert b {
   display: block;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 13px;
   color: var(--title);
+  font-weight: 600;
 }
 
-/* Capped at 3 lines — the NWS Tropical Cyclone Local Statement areaDesc can be
-   a wall of parish names (e.g. every LIX/BR CWA parish under a TCLS); the full
-   text is still available via the span's title attribute (Alerts.tsx). */
 .alert span {
   color: var(--ink-dim);
   display: -webkit-box;
@@ -477,27 +344,129 @@ a {
   overflow: hidden;
 }
 
-/* Shown instead of the alert list when the NWS feed has never successfully
-   loaded (SWR error with no cached data) — distinct from "no alerts active",
-   which renders nothing (quiet) or a normal "no active watches/warnings" line
-   (active). See Alerts.tsx / alerts.ts's deriveAlertsState(). */
 .alert-unavailable {
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-style: italic;
   color: var(--ink-dim);
 }
 
+/* ============ Wind chances (WindProbabilities.tsx) ============ */
+.wind-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.wind-hero-stat {
+  background: var(--panel-muted);
+  border-radius: 8px;
+  padding: 14px 14px 12px;
+}
+
+.wind-hero-value {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+}
+
+.wind-hero-label {
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin-top: 4px;
+}
+
+.wind-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 12.5px;
+}
+
+.wind-table th {
+  text-align: right;
+  font-weight: 500;
+  color: var(--ink-dim);
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.wind-table th:first-child,
+.wind-table td:first-child {
+  text-align: left;
+}
+
+.wind-table td {
+  text-align: right;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  color: var(--body-text);
+}
+
+.wind-table td:first-child {
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+/* ============ Forecast discussion (ForecastDiscussion.tsx) ============ */
+.discussion-byline {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-top: -4px;
+  margin-bottom: 10px;
+}
+
+.discussion-body {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--body-text);
+  max-height: 5.5em;
+  overflow: hidden;
+}
+
+.discussion-body.expanded {
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.discussion-body p {
+  margin-bottom: 12px;
+}
+
+.discussion-body p:last-child {
+  margin-bottom: 0;
+}
+
+.text-link {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 8px 0 0;
+  cursor: pointer;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+/* ============ Forecast models (ModelLegend.tsx) ============ */
 .models {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3px 12px;
-  font-size: 11.5px;
+  gap: 6px 14px;
+  font-size: 12.5px;
 }
 
 .models .m {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   color: var(--ink);
   cursor: pointer;
 }
@@ -518,29 +487,26 @@ a {
 
 .models .grp {
   grid-column: 1 / -1;
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--ink-dim);
-  margin-top: 5px;
+  margin-top: 8px;
 }
 
 .legend-actions {
   display: flex;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 
 .legend-actions button {
   font: inherit;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 12px;
   color: var(--ink-dim);
-  background: none;
+  background: var(--panel-muted);
   border: 1px solid var(--rule);
-  padding: 4px 8px;
+  border-radius: 5px;
+  padding: 6px 10px;
   cursor: pointer;
 }
 
@@ -549,94 +515,50 @@ a {
   border-color: var(--ink-dim);
 }
 
-/* ============ Tide gauge sparklines (Gauges.tsx) ============ */
-[data-mode="quiet"] .gauge {
-  margin-bottom: 14px;
-}
-
-[data-mode="active"] .gauge {
-  margin-bottom: 11px;
-}
-
-.gauge .name {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11.5px;
-  color: var(--body-text);
-  margin-bottom: 2px;
-}
-
-[data-mode="active"] .gauge .name {
-  font-size: 11px;
-  color: var(--gauge-label-dim);
-}
-
-.gauge .name b {
-  font-weight: 600;
-}
-
-.gauge .name .val {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-[data-mode="active"] .gauge .name .val {
-  color: var(--accent-2);
-  font-weight: 700;
-}
-
-.gauge-unavailable {
-  font-size: 11.5px;
-  font-style: italic;
-  color: var(--ink-dim);
-}
-
 /* ============ Intensity guidance panel (IntensityPanel.tsx, active mode only) ============ */
 .ipanel {
-  height: 180px;
+  height: 320px;
   flex: none;
   background: var(--panel);
   border-top: 1px solid var(--rule);
-  padding: 10px 18px 8px;
+  padding: 14px 20px 10px;
 }
 
 .ipanel .head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .ipanel .head .t {
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--title);
 }
 
 .ipanel .head .s {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11.5px;
   color: var(--ink-dim);
 }
 
 /* Custom Recharts tooltip content (replaces the library's default white box
    entirely — see IntensityPanel.tsx's IntensityTooltip). */
 .ipanel-tooltip {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--rule);
-  padding: 6px 8px;
+  border-radius: 6px;
+  padding: 8px 10px;
   line-height: 1.6;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .ipanel-tooltip .time {
   color: var(--ink-dim);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
+  font-weight: 600;
 }
 
 .ipanel-tooltip .row {
@@ -651,137 +573,135 @@ a {
   height: 8px;
   flex: none;
   display: inline-block;
+  border-radius: 50%;
 }
 
-/* ============ Rail foot (both modes) ============ */
+/* ============ Rail foot (both content modes) ============ */
 .foot {
   margin-top: auto;
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--ink-dim);
   line-height: 1.6;
   border-top: 1px solid var(--rule);
-  padding-top: 10px;
-}
-
-[data-mode="active"] .foot {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  line-height: 1.7;
+  padding-top: 12px;
 }
 
 /* ============ Map corner tag + page disclaimer ============ */
 .simtag {
   position: absolute;
   left: 16px;
-  bottom: 12px;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  color: var(--ink-dim);
-  border: 1px solid var(--rule);
-  padding: 3px 7px;
-  background: var(--panel);
-  z-index: 1;
-}
-
-/* ============ Radar toggle (B3, final review) — overlaid bottom-right on the map, both modes ============
-   Rendered inside StormMap.tsx as a child of .gw-map-frame (the map's own
-   box), NOT as a sibling of the intensity panel in .mapcol — anchoring to
-   .mapcol previously put this at the bottom of the WHOLE column, which in
-   active mode (where .ipanel occupies the column's bottom 180px) rendered
-   the button inside the panel, overlapping its chart near the last x-tick.
-   Anchoring to .gw-map-frame keeps it pinned to the map itself in both
-   modes, clearing the quiet-mode plate caption exactly as before. */
-.radar-toggle {
-  position: absolute;
-  right: 16px;
-  bottom: 44px;
-  z-index: 2;
-  font: inherit;
+  bottom: 14px;
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--ink-dim);
-  background: var(--panel);
   border: 1px solid var(--rule);
-  padding: 5px 9px;
-  cursor: pointer;
-}
-
-.radar-toggle:hover {
-  color: var(--ink);
-  border-color: var(--ink-dim);
-}
-
-.radar-toggle.on {
-  color: var(--title);
-  border-color: var(--accent);
-}
-
-/* ============ Quiet-mode map chart furniture (StormMap.tsx, quiet only) ============ */
-.gw-compass {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 60px;
-  height: 60px;
+  border-radius: 5px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.9);
   z-index: 1;
-  pointer-events: none;
-}
-
-.plate {
-  position: absolute;
-  right: 16px;
-  bottom: 14px;
-  z-index: 1;
-  text-align: right;
-  font-family: var(--font-serif);
-  font-size: 10.5px;
-  font-style: italic;
-  color: var(--ink-dim);
-  pointer-events: none;
 }
 
 .disclaimer {
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--ink-dim);
   text-align: center;
-  padding: 8px 22px;
+  padding: 10px 22px;
   border-top: 1px solid var(--rule);
   background: var(--panel);
 }
 
-/* ============ Map labels — plain HTML/CSS markers (no glyph-server dependency) ============ */
+/* ============ Map basemap attribution (required credit for Esri imagery) ============ */
+.map-attribution {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 1;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+/* ============ Map layer / radar toggle — plain map-app-style control (Windy/Google Maps convention, not a HUD chip) ============ */
+.radar-toggle {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  padding: 7px 14px 7px 10px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.radar-toggle:hover {
+  border-color: var(--ink-dim);
+}
+
+.radar-toggle .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--rule);
+  flex: none;
+}
+
+.radar-toggle.on .dot {
+  background: var(--accent);
+}
+
+.radar-toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ============ Quiet-mode map furniture (StormMap.tsx) ============ */
+.gw-compass {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 46px;
+  height: 46px;
+  z-index: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.7));
+}
+
+/* ============ Map labels — plain HTML/CSS markers, white with a dark halo for legibility over satellite imagery ============ */
 .gw-map-label {
   pointer-events: none;
   white-space: nowrap;
-  font-family: var(--font-mono);
 }
 
 .gw-graticule-label {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--grid-label);
-  letter-spacing: 0.02em;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
 }
 
 .gw-track-label {
-  font-size: 10.5px;
-  color: var(--ink);
-  text-shadow:
-    0 0 3px var(--water),
-    0 0 5px var(--water);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #ffffff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6);
 }
 
 /* Non-selected storms' name labels (B2, final review) — same halo treatment
    as .gw-track-label, slightly dimmer since these storms carry no other
    detail on the map. */
 .gw-storm-label {
-  font-size: 10.5px;
-  color: var(--ink-dim);
-  text-shadow:
-    0 0 3px var(--water),
-    0 0 5px var(--water);
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6);
 }
 
 .gw-outlook-label {
@@ -789,14 +709,12 @@ a {
   font-weight: 700;
   font-size: 13px;
   text-align: center;
-  text-shadow:
-    0 0 4px var(--water),
-    0 0 6px var(--water);
+  color: #ffffff;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8), 0 0 7px rgba(0, 0, 0, 0.6);
 }
 
-/* NOLA marker: navy serif-italic dot+label in quiet mode, orange bold-caps in active
-   (mockup .quiet "New Orleans" text vs .active "NEW ORLEANS" text) — driven entirely
-   by [data-mode] cascade, no JS branching needed. */
+/* NOLA marker: warm accent dot + label, single style (mode only switches
+   content, not this). */
 .gw-nola-marker {
   display: flex;
   align-items: center;
@@ -809,22 +727,13 @@ a {
   height: 9px;
   border-radius: 50%;
   background: var(--accent-2);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-2) 35%, transparent);
+  box-shadow: 0 0 0 4px rgba(194, 112, 61, 0.35);
   flex: none;
 }
 
 .gw-nola-label {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
-  color: var(--accent-2);
-}
-
-[data-mode="active"] .gw-nola-label {
-  font-family: var(--font-sans);
-  font-style: normal;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-size: 12px;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: #ffffff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6);
 }

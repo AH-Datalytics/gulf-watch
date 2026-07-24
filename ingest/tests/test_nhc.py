@@ -72,6 +72,18 @@ def test_bertha_in_gulf_box_is_true(bertha):
     assert in_gulf_box(bertha.lat, bertha.lon) is True
 
 
+def test_bertha_text_product_urls_and_issued_times(bertha):
+    # forecastDiscussion/publicAdvisory/windSpeedProbabilities URLs + the
+    # discussion's own issuance, carried through for gulfwatch.text/probs.
+    assert bertha.discussion_url == "https://www.nhc.noaa.gov/text/MIATCDAT2.shtml"
+    assert bertha.discussion_issued == "2026-07-22T21:00:00Z"
+    assert bertha.advisory_url == "https://www.nhc.noaa.gov/text/MIATCPAT2.shtml"
+    # publicAdvisory's issued time is Storm.advisory_time itself -- no
+    # separate/duplicate field needed (see nhc.py).
+    assert bertha.advisory_time == "2026-07-23T00:00:00Z"
+    assert bertha.probs_url == "https://www.nhc.noaa.gov/text/MIAPWSAT2.shtml"
+
+
 def test_bertha_gis_urls_all_explicit_from_json(bertha):
     # All three GIS product fields point at the same "5day" package zip for
     # this advisory -- that's expected NHC behavior, not a bug.

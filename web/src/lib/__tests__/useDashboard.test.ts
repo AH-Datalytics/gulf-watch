@@ -107,6 +107,8 @@ function makeStorm(overrides: Partial<StormEntry>): StormEntry {
       wwlines: "wwlines.geojson",
       models: "models.geojson",
       intensity: "intensity.json",
+      text: "text.json",
+      probs: "probs.json",
     },
     ...overrides,
   };

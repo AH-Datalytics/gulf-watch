@@ -37,7 +37,7 @@ export function Alerts({ mode }: AlertsProps) {
   if (unavailable) {
     return (
       <div>
-        <div className="kicker">Watches &amp; Warnings — Metro Parishes</div>
+        <div className="kicker">Watches &amp; warnings</div>
         <p className="alert-unavailable">Alerts unavailable — check weather.gov</p>
       </div>
     );
@@ -47,7 +47,7 @@ export function Alerts({ mode }: AlertsProps) {
 
   return (
     <div>
-      <div className="kicker">Watches &amp; Warnings — Metro Parishes</div>
+      <div className="kicker">Watches &amp; warnings</div>
       {rows.length === 0 ? (
         <p className="body-text">No active watches or warnings for the metro parishes.</p>
       ) : (

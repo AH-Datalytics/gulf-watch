@@ -26,15 +26,15 @@ export function OutlookPanel({ outlookText }: OutlookPanelProps) {
           No active systems
         </div>
         {outlookText && (
-          <div className="issued num">
-            TROPICAL WEATHER OUTLOOK · {cdtTime(outlookText.issued)} · NEXT{" "}
+          <div className="issued">
+            Tropical weather outlook · issued {cdtTime(outlookText.issued)} · next update{" "}
             {nextOutlookIssueTime(outlookText.issued)}
           </div>
         )}
       </div>
       {outlookText && (
         <div>
-          <div className="kicker">Seven-Day Outlook</div>
+          <div className="kicker">Seven-day outlook</div>
           <div className="body-text">{withBoldPercentages(outlookText.text)}</div>
         </div>
       )}

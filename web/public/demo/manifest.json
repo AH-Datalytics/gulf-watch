@@ -22,7 +22,9 @@
         "track": "track.geojson",
         "wwlines": "wwlines.geojson",
         "models": "models.geojson",
-        "intensity": "intensity.json"
+        "intensity": "intensity.json",
+        "text": "text.json",
+        "probs": "probs.json"
       }
     },
     {
@@ -45,7 +47,9 @@
         "track": "track.geojson",
         "wwlines": "wwlines.geojson",
         "models": "models.geojson",
-        "intensity": "intensity.json"
+        "intensity": "intensity.json",
+        "text": "text.json",
+        "probs": "probs.json"
       }
     }
   ],

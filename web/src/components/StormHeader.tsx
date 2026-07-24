@@ -14,10 +14,10 @@ function useNow(intervalMs: number): Date {
   return now;
 }
 
-/** "CAT 2" for numeric categories, "TS"/"TD" as-is otherwise. */
+/** "Cat 2" for numeric categories, "TS"/"TD" as-is otherwise. */
 function catChipText(intensityMph: number): string {
   const cat = categoryFor(intensityMph);
-  return /^\d$/.test(cat) ? `CAT ${cat}` : cat;
+  return /^\d$/.test(cat) ? `Cat ${cat}` : cat;
 }
 
 export interface StormHeaderProps {
@@ -53,8 +53,8 @@ export function StormHeader({ storm }: StormHeaderProps) {
           </div>
         </div>
       </div>
-      <div className="adv num">
-        ADVISORY {storm.advisoryNum} · {cdtTime(storm.advisoryTime)} · NEXT{" "}
+      <div className="adv">
+        Advisory {storm.advisoryNum} · issued {cdtTime(storm.advisoryTime)} · next update{" "}
         <b>{cdtTime(storm.nextAdvisoryTime)}</b> ({countdown(storm.nextAdvisoryTime, now)})
       </div>
     </div>

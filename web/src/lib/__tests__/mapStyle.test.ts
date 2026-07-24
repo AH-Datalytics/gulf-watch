@@ -14,30 +14,24 @@ import {
   type ModeColors,
 } from "../mapStyle";
 
-// Both fixtures are real token sets (copied from globals.css), not just the
-// quiet one: outlookColor() previously aliased --warn-ssw/--warn-hw, which
-// match --outlook-low/--outlook-high by coincidence in quiet mode but diverge
-// in active mode (--warn-ssw is storm-surge purple there) — a quiet-only
-// fixture couldn't have caught that.
+// Real token set (copied from globals.css's v2 single light theme) plus a
+// synthetic "alternate" set, so outlookColor()'s independence from
+// --warn-ssw/--warn-hw is still verified against a palette where those two
+// diverge from --outlook-low/--outlook-high (rather than only ever matching
+// by coincidence).
 const QUIET_COLORS: ModeColors = {
-  water: "#f4efe3",
-  land: "#eae1ca",
-  coast: "#6b5d45",
-  grid: "#ddd2b8",
-  gridLabel: "#b0a385",
+  grid: "rgba(255, 255, 255, 0.45)",
+  gridLabel: "rgba(255, 255, 255, 0.92)",
   accent: "#1f3a5f",
-  accent2: "#1f3a5f",
-  warnHw: "#b3402e",
-  warnSsw: "#d97b29",
-  warnTsw: "#1f3a5f",
+  accent2: "#c2703d",
+  warnHw: "#c0392b",
+  warnSsw: "#8e44ad",
+  warnTsw: "#2f6fae",
   outlookLow: "#d97b29",
   outlookHigh: "#b3402e",
 };
 
 const ACTIVE_COLORS: ModeColors = {
-  water: "#0d1830",
-  land: "#1a2a49",
-  coast: "#33507e",
   grid: "#14213a",
   gridLabel: "#5f7495",
   accent: "#e9c46a",

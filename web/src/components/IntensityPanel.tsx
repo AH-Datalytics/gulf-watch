@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import {
+  CartesianGrid,
   Line,
   LineChart,
   ReferenceArea,
@@ -68,6 +69,14 @@ function maxTau(series: IntensitySeries["series"]): number {
   return max;
 }
 
+/** Y-axis ticks every 25 mph from 0 to yMax inclusive (yMax is itself always
+ *  a multiple of 25 — see yDomain above). */
+function buildYTicks(yMax: number): number[] {
+  const ticks: number[] = [];
+  for (let v = 0; v <= yMax; v += 25) ticks.push(v);
+  return ticks;
+}
+
 /** 5 evenly-spaced tick hours across [0, maxTauH], deduped for tiny ranges. */
 function buildTicks(maxTauH: number): number[] {
   if (maxTauH <= 0) return [0];
@@ -124,6 +133,7 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
   const [, yMax] = useMemo(() => yDomain(intensity.series), [intensity.series]);
   const maxTauH = useMemo(() => maxTau(intensity.series), [intensity.series]);
   const ticks = useMemo(() => buildTicks(maxTauH), [maxTauH]);
+  const yTicks = useMemo(() => buildYTicks(yMax), [yMax]);
   const landfall = useMemo(() => landfallTau(track, intensity), [track, intensity]);
 
   const chartData = useMemo(() => {
@@ -147,24 +157,40 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
   return (
     <div className="ipanel">
       <div className="head">
-        <div className="t">Intensity Guidance — max sustained winds, next {maxTauH} h</div>
-        <div className="s">OFFICIAL NHC FORECAST IN WHITE · AI GUIDANCE DASHED</div>
+        <div className="t">Intensity guidance — max sustained winds, next {maxTauH}h</div>
+        <div className="s">Official NHC forecast in navy · AI guidance dashed</div>
       </div>
-      <ResponsiveContainer width="100%" height={138}>
-        <LineChart data={chartData} margin={{ top: 16, right: 46, bottom: 4, left: 4 }}>
+      <ResponsiveContainer width="100%" height={258}>
+        <LineChart data={chartData} margin={{ top: 20, right: 46, bottom: 4, left: 4 }}>
           <XAxis
             dataKey="tauH"
             type="number"
             domain={[0, maxTauH || 1]}
             ticks={ticks}
             tickFormatter={(value: number) =>
-              value === 0 ? "NOW" : cdtTickLabel(addHoursIso(storm.advisoryTime, value))
+              value === 0 ? "Now" : cdtTickLabel(addHoursIso(storm.advisoryTime, value))
             }
             stroke="var(--rule)"
-            tick={{ fill: "var(--ink-dim)", fontSize: 9.5, fontFamily: "var(--font-mono)" }}
+            tick={{ fill: "var(--ink-dim)", fontSize: 12 }}
             tickLine={false}
           />
-          <YAxis domain={[0, yMax]} hide />
+          <YAxis
+            domain={[0, yMax]}
+            ticks={yTicks}
+            tickFormatter={(value: number) => `${value}`}
+            width={44}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "var(--ink-dim)", fontSize: 12 }}
+            label={{
+              value: "mph",
+              angle: -90,
+              position: "insideLeft",
+              fill: "var(--ink-dim)",
+              fontSize: 11.5,
+            }}
+          />
+          <CartesianGrid horizontal vertical={false} stroke="var(--rule)" strokeDasharray="3 3" />
           {visibleBands.map((b) => (
             <ReferenceArea
               key={b.label}
@@ -178,8 +204,7 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
                 value: b.label,
                 position: "insideTopRight",
                 fill: "var(--ink-dim)",
-                fontSize: 8.5,
-                fontFamily: "var(--font-mono)",
+                fontSize: 11,
               }}
             />
           ))}
@@ -187,11 +212,11 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
             <ReferenceLine
               x={landfall}
               stroke="var(--accent-2)"
-              strokeWidth={1}
+              strokeWidth={1.5}
               strokeDasharray="3 3"
               ifOverflow="visible"
               label={{
-                value: "LANDFALL",
+                value: "Landfall",
                 // "top" — above the plot area entirely (in the enlarged
                 // top margin), not "insideTopRight": the category bands'
                 // own right-edge labels live inside the plot at the same
@@ -202,8 +227,8 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
                 // is at the last available tau).
                 position: "top",
                 fill: "var(--accent-2)",
-                fontSize: 8.5,
-                fontFamily: "var(--font-mono)",
+                fontSize: 11.5,
+                fontWeight: 600,
               }}
             />
           )}
@@ -213,10 +238,10 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
               dataKey={s.model}
               name={s.label}
               stroke={modelColor(s.model)}
-              strokeWidth={s.model === "OFCL" ? 2.4 : 1.2}
+              strokeWidth={s.model === "OFCL" ? 2.8 : 1.6}
               strokeDasharray={s.kind === "ai" ? "5 4" : undefined}
-              dot={s.model === "OFCL" ? { r: 3, fill: "#fff", strokeWidth: 0 } : false}
-              activeDot={{ r: 3 }}
+              dot={s.model === "OFCL" ? { r: 3.5, fill: "var(--accent)", strokeWidth: 0 } : false}
+              activeDot={{ r: 3.5 }}
               connectNulls
               isAnimationActive={false}
             />

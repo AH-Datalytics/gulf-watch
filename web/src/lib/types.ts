@@ -17,7 +17,7 @@ export interface StormEntry {
   nextAdvisoryTime: string;
   inGulfBox: boolean;
   modelCycle: string;
-  files: Record<"cone" | "track" | "wwlines" | "models" | "intensity", string>;
+  files: Record<"cone" | "track" | "wwlines" | "models" | "intensity" | "text" | "probs", string>;
 }
 
 export interface Manifest {
@@ -43,4 +43,26 @@ export interface IntensitySeriesEntry {
 export interface IntensitySeries {
   cycle: string;
   series: IntensitySeriesEntry[];
+}
+
+/** One row of storms/{id}/probs.json — 120h (full-period) cumulative wind
+ *  speed probabilities for a named Gulf Watch point, parsed from the NHC PWS
+ *  text product. */
+export interface ProbsEntry {
+  point: string;
+  ts34: number;
+  kt50: number;
+  hurricane64: number;
+}
+
+/** One product in storms/{id}/text.json — a plain-text NHC product, lightly
+ *  cleaned (WMO/AWIPS header stripped, body kept). */
+export interface TextProduct {
+  issued: string;
+  text: string;
+}
+
+export interface StormTextProducts {
+  discussion: TextProduct;
+  publicAdvisory: TextProduct;
 }
