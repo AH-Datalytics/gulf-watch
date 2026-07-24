@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { GeoJSONSource, Map as MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { LayerKey, LayerState } from "@/lib/layers";
 import type { Mode } from "@/lib/types";
 import type { OtherStorm } from "@/lib/useDashboard";
+import { LayersControl } from "./LayersControl";
 import {
   applyModeColors,
   buildGraticule,
@@ -20,12 +22,14 @@ import {
   outlookColor,
   polygonLabelPoint,
   readModeColors,
+  resolveGroup,
   SOURCE_IDS,
   trackPointLabel,
+  windProbColor,
   withColor,
   wwColor,
 } from "@/lib/mapStyle";
-import { DEFAULT_MODEL_COLOR, MODEL_COLORS } from "@/lib/modelColors";
+import { DEFAULT_MODEL_COLOR, ENSEMBLE_COLOR, MODEL_COLORS } from "@/lib/modelColors";
 
 // maplibre-gl resolves its worker script relative to its own module's
 // `import.meta.url` at runtime (see web_worker.ts's defaultWorkerUrl()).
@@ -49,16 +53,24 @@ export interface StormMapProps {
     wwlines?: GeoJSON.FeatureCollection;
     models?: GeoJSON.FeatureCollection;
     outlook?: GeoJSON.FeatureCollection;
+    /** Real NHC wind-speed-probability shapefile (34kt threshold) — see
+     *  types.ts's StormEntry.files.windprob; undefined for storms without
+     *  one (most, today — only the Ida historical sample carries it). */
+    windProb?: GeoJSON.FeatureCollection;
   };
   mode: Mode;
   visibleModels: Set<string>;
-  showRadar: boolean;
-  /** Toggles `showRadar`. The RADAR button lives here (rendered inside
-   *  .gw-map-frame, the map's own box) rather than in page.tsx as a sibling
-   *  of the intensity panel — see globals.css's .radar-toggle comment for
-   *  why that placement previously let the button intrude into the panel
-   *  in active mode. */
-  onToggleRadar: () => void;
+  /** Unified map-layers control state (v2 addendum Round 2) — lifted to
+   *  page.tsx; the LayersControl panel rendered here is a controlled/
+   *  presentational component only (see lib/layers.ts). Replaces the old
+   *  standalone floating RADAR button. */
+  layers: LayerState;
+  onLayersToggle: (key: LayerKey) => void;
+  /** Whether the intensity panel actually has anything to show right now
+   *  (active mode, a selected storm, intensity data loaded) — forwarded to
+   *  LayersControl so the Graphs checkbox disables rather than lying about
+   *  what toggling it will do. */
+  hasGraphs: boolean;
   /** Every non-selected manifest storm (B2, final review) — drawn as a cone
    *  in the same styling as the selected storm's, plus a small monospace
    *  name label at its current position. */
@@ -68,6 +80,10 @@ export interface StormMapProps {
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 function modelColor(props: GeoJSON.GeoJsonProperties): string {
+  // Every GEFS/ECMWF ensemble member shares one flat, faint color by design
+  // (see modelColors.ts's ENSEMBLE_COLOR comment) rather than an individual
+  // per-code color — there can be 60+ of them.
+  if (resolveGroup(props) === "ensemble") return ENSEMBLE_COLOR;
   const model = String(props?.model ?? "");
   return MODEL_COLORS[model] ?? DEFAULT_MODEL_COLOR;
 }
@@ -101,7 +117,15 @@ function CompassRose() {
   );
 }
 
-export default function StormMap({ geo, mode, visibleModels, showRadar, onToggleRadar, otherStorms }: StormMapProps) {
+export default function StormMap({
+  geo,
+  mode,
+  visibleModels,
+  layers,
+  onLayersToggle,
+  hasGraphs,
+  otherStorms,
+}: StormMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -224,6 +248,14 @@ export default function StormMap({ geo, mode, visibleModels, showRadar, onToggle
     src?.setData(withColor(geo.wwlines, (props) => wwColor(props?.TCWW as string | undefined)));
   }, [geo.wwlines, loaded]);
 
+  // --- wind-probability shaded field (Round 2, v2 addendum) ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const src = map.getSource(SOURCE_IDS.windProb) as GeoJSONSource | undefined;
+    src?.setData(withColor(geo.windProb, (props) => windProbColor(props?.PERCENTAGE as string | undefined)));
+  }, [geo.windProb, loaded]);
+
   // --- outlook genesis areas (mode-aware fill/line color + probability labels) ---
   useEffect(() => {
     const map = mapRef.current;
@@ -256,31 +288,62 @@ export default function StormMap({ geo, mode, visibleModels, showRadar, onToggle
 
     const modelList = Array.from(visibleModels);
     const inVisible: FilterSpecification = ["in", ["get", "model"], ["literal", modelList]];
-    map.setFilter(LAYER_IDS.modelsSolid, ["all", ["!=", ["get", "kind"], "ai"], inVisible]);
+    map.setFilter(LAYER_IDS.modelsEnsemble, ["all", ["==", ["get", "kind"], "ensemble"], inVisible]);
+    map.setFilter(
+      LAYER_IDS.modelsSolid,
+      ["all", ["!=", ["get", "kind"], "ai"], ["!=", ["get", "kind"], "ensemble"], inVisible]
+    );
     map.setFilter(LAYER_IDS.modelsDashed, ["all", ["==", ["get", "kind"], "ai"], inVisible]);
   }, [geo.models, visibleModels, loaded]);
 
-  // --- radar toggle ---
+  // --- unified layers control: cone / model-tracks master on-off / radar
+  // (Round 2, v2 addendum) — each just toggles GL layer visibility; the
+  // underlying source data and, for models, the visibleModels filter above
+  // are untouched, so re-enabling a layer restores exactly what was there
+  // before (no state is lost by hiding a layer). ---
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
-    map.setLayoutProperty(LAYER_IDS.radar, "visibility", showRadar ? "visible" : "none");
-  }, [showRadar, loaded]);
+    const coneVis = layers.cone ? "visible" : "none";
+    map.setLayoutProperty(LAYER_IDS.coneFill, "visibility", coneVis);
+    map.setLayoutProperty(LAYER_IDS.coneLineCasing, "visibility", coneVis);
+    map.setLayoutProperty(LAYER_IDS.coneLine, "visibility", coneVis);
+  }, [layers.cone, loaded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const modelsVis = layers.models ? "visible" : "none";
+    map.setLayoutProperty(LAYER_IDS.modelsEnsemble, "visibility", modelsVis);
+    map.setLayoutProperty(LAYER_IDS.modelsSolid, "visibility", modelsVis);
+    map.setLayoutProperty(LAYER_IDS.modelsDashed, "visibility", modelsVis);
+  }, [layers.models, loaded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    map.setLayoutProperty(LAYER_IDS.radar, "visibility", layers.radar ? "visible" : "none");
+  }, [layers.radar, loaded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const windProbVis = layers.windProb ? "visible" : "none";
+    map.setLayoutProperty(LAYER_IDS.windProbFill, "visibility", windProbVis);
+    map.setLayoutProperty(LAYER_IDS.windProbLine, "visibility", windProbVis);
+  }, [layers.windProb, loaded]);
 
   return (
     <div className="gw-map-frame">
       <div ref={containerRef} className="gw-map" />
       <CompassRose />
       <div className="map-attribution">{ESRI_ATTRIBUTION}</div>
-      <button
-        type="button"
-        className={`radar-toggle${showRadar ? " on" : ""}`}
-        aria-pressed={showRadar}
-        onClick={onToggleRadar}
-      >
-        <span className="dot" />
-        Radar
-      </button>
+      <LayersControl
+        layers={layers}
+        onToggle={onLayersToggle}
+        hasWindProb={(geo.windProb?.features.length ?? 0) > 0}
+        hasGraphs={hasGraphs}
+      />
     </div>
   );
 }

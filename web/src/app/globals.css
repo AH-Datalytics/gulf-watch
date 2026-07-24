@@ -118,18 +118,33 @@ a {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  /* Clip to the flex-allotted box rather than spilling map-corner overlays
+     (attribution, layers control) into the disclaimer bar below on short
+     windows; also the positioning context for .ipanel, the pop-out
+     intensity panel absolutely positioned over the bottom of the map (see
+     .ipanel's own comment — Round 2, v2 addendum). */
+  overflow: hidden;
   position: relative;
 }
 
 .gw-map-frame {
   flex: 1;
   position: relative;
-  min-height: 240px;
+  min-height: 160px;
 }
 
 .gw-map {
   width: 100%;
   height: 100%;
+}
+
+/* Shorter windows: shrink the pop-out intensity panel so it doesn't cover
+   most of a short map view. */
+@media (max-height: 820px) {
+  .ipanel:not(.collapsed) {
+    height: 220px;
+  }
 }
 
 /* ============ Mobile: rail stacks below the map, document scrolls normally ============ */
@@ -351,6 +366,12 @@ a {
 }
 
 /* ============ Wind chances (WindProbabilities.tsx) ============ */
+.wind-hero-window {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+
 .wind-hero {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -515,20 +536,73 @@ a {
   border-color: var(--ink-dim);
 }
 
-/* ============ Intensity guidance panel (IntensityPanel.tsx, active mode only) ============ */
+/* ============ Intensity guidance panel (IntensityPanel.tsx) ============
+   Round 2 (v2 addendum, user feedback mid-build: "the intensity guidance
+   needs to be a pop out... or at least be collapsable/expandable"): this is
+   now a floating pop-out card anchored to the bottom of .mapcol (position:
+   absolute — .mapcol is the positioning context, see its own rule above),
+   NOT an in-flow flex sibling that permanently shrinks the map's visible
+   height. It can be collapsed to just its header bar (.ipanel.collapsed) or
+   closed entirely (unmounted via the "Graphs" checkbox in the map's Layers
+   control / the panel's own × button) — either way the map itself keeps its
+   full height throughout. */
 .ipanel {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
   height: 320px;
-  flex: none;
+  display: flex;
+  flex-direction: column;
   background: var(--panel);
-  border-top: 1px solid var(--rule);
-  padding: 14px 20px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.06), 0 6px 20px rgba(0, 0, 0, 0.18);
+  padding: 12px 20px 10px;
+  min-height: 0;
+  transition: height 0.15s ease;
+}
+
+.ipanel.collapsed {
+  height: auto;
 }
 
 .ipanel .head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-start;
   margin-bottom: 6px;
+  flex: none;
+}
+
+.ipanel-controls {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+.ipanel-btn {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--ink-dim);
+  background: var(--panel-muted);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.ipanel-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+.ipanel-chart {
+  flex: 1;
+  min-height: 0;
 }
 
 .ipanel .head .t {
@@ -623,45 +697,77 @@ a {
   pointer-events: none;
 }
 
-/* ============ Map layer / radar toggle — plain map-app-style control (Windy/Google Maps convention, not a HUD chip) ============ */
-.radar-toggle {
+/* ============ Unified map layers control (LayersControl.tsx) — a plain,
+   familiar map-app layers panel (Google Maps/Windy convention), top-right of
+   the map. Replaces the old standalone floating RADAR button (Round 2, v2
+   addendum). ============ */
+.layers-control {
   position: absolute;
   right: 14px;
   top: 14px;
   z-index: 2;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  min-width: 168px;
+  font-size: 12.5px;
+}
+
+.layers-head {
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: space-between;
+  width: 100%;
   font: inherit;
-  font-size: 12.5px;
+  font-weight: 600;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid var(--rule);
-  border-radius: 20px;
-  padding: 7px 14px 7px 10px;
+  background: none;
+  border: none;
+  padding: 9px 12px;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
-.radar-toggle:hover {
-  border-color: var(--ink-dim);
+.layers-head .chev {
+  color: var(--ink-dim);
+  font-weight: 400;
 }
 
-.radar-toggle .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--rule);
-  flex: none;
+.layers-body {
+  padding: 2px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--rule);
+  padding-top: 8px;
 }
 
-.radar-toggle.on .dot {
-  background: var(--accent);
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  cursor: pointer;
 }
 
-.radar-toggle.on {
-  border-color: var(--accent);
-  color: var(--accent);
+.layer-row input {
+  margin: 0;
+}
+
+.layer-row.disabled {
+  color: var(--ink-dim);
+  cursor: default;
+}
+
+.layer-note {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-left: auto;
+}
+
+.layers-divider {
+  border-top: 1px solid var(--rule);
+  margin: 2px 0;
 }
 
 /* ============ Quiet-mode map furniture (StormMap.tsx) ============ */
@@ -737,3 +843,4 @@ a {
   color: #ffffff;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6);
 }
+

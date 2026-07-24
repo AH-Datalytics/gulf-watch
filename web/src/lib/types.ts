@@ -17,7 +17,15 @@ export interface StormEntry {
   nextAdvisoryTime: string;
   inGulfBox: boolean;
   modelCycle: string;
-  files: Record<"cone" | "track" | "wwlines" | "models" | "intensity" | "text" | "probs", string>;
+  files: Record<"cone" | "track" | "wwlines" | "models" | "intensity" | "text" | "probs", string> & {
+    /** Real NHC GIS wind-speed-probability shapefile (34kt/TS-force
+     *  threshold) converted to GeoJSON — 11 graduated probability-percentage
+     *  polygons ("<5%".."90%"), used by the map's shaded Wind probability
+     *  layer. Optional/new: only the Ida historical sample carries this
+     *  today (see ingest/scripts/build_ida_sample.py); bertha/live entries
+     *  simply omit the key, and the map layer disables gracefully. */
+    windprob?: string;
+  };
 }
 
 export interface Manifest {

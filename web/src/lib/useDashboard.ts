@@ -55,32 +55,40 @@ const jsonFetcher = async <T,>(url: string): Promise<T> => {
 
 /**
  * Manifest URL for a given `?demo=` value. `demo=bertha` fetches a real
- * captured advisory-016 snapshot (web/public/demo/bertha/manifest.json) whose
- * `storms[0].files` values are pre-rewritten to `bertha/<name>.geojson`
- * (relative to `DEMO_BASE`, exactly like the Solene fixtures' flat
- * `<name>.geojson` values in web/public/demo/manifest.json) — so no base-URL
- * branching is needed elsewhere: `base` in {@link useDashboard} stays
- * `DEMO_BASE` for every demo variant, and the manifest's own `files` map does
- * all the path resolution.
+ * captured advisory-016 snapshot (web/public/demo/bertha/manifest.json) and
+ * `demo=ida` the real Hurricane Ida historical sample
+ * (web/public/demo/ida/manifest.json) — both have `storms[0].files` values
+ * pre-rewritten to `<variant>/<name>.geojson` (relative to `DEMO_BASE`), so
+ * no base-URL branching is needed elsewhere: `base` in {@link useDashboard}
+ * stays `DEMO_BASE` for every demo variant, and the manifest's own `files`
+ * map does all the path resolution.
+ *
+ * The fictional Hurricane Solene demo (formerly `?demo=1`, whose fixtures
+ * lived flat under web/public/demo/) was RETIRED once the real Ida sample
+ * landed (v2 addendum, Round 2) — any demo value other than "quiet"/
+ * "bertha"/"ida" now falls back to the Ida flagship sample rather than
+ * Solene.
  */
 export function manifestUrl(demoParam: string | null): string {
   if (demoParam === "quiet") return `${DEMO_BASE}/manifest-quiet.json`;
   if (demoParam === "bertha") return `${DEMO_BASE}/bertha/manifest.json`;
-  if (demoParam !== null) return `${DEMO_BASE}/manifest.json`;
+  if (demoParam !== null) return `${DEMO_BASE}/ida/manifest.json`;
   return `${BLOB_BASE}/manifest.json`;
 }
 
 /**
  * Map-corner demo tag text for a given `?demo=` value — `null` when not in
- * demo mode at all. `demo=bertha` is a real archived advisory (not a
- * fictional mockup storm), so its tag reads "ARCHIVED DATA" rather than
- * "SIMULATED"; every other demo variant (`1`, `quiet`, or any other value)
- * keeps the original simulated-storm wording unchanged.
+ * demo mode at all. `demo=bertha` is a real archived advisory, so its tag
+ * reads "ARCHIVED DATA" rather than "SIMULATED"; `demo=ida` (or any other
+ * non-"quiet" demo value, now that Solene is retired) is a real historical
+ * sample and reads "HISTORICAL SAMPLE"; `demo=quiet` is the only remaining
+ * fictional/simulated variant.
  */
 export function demoTag(demoParam: string | null): string | null {
   if (demoParam === null) return null;
   if (demoParam === "bertha") return "ARCHIVED DATA — TS BERTHA · ADV 016 · JUL 23 2026";
-  return "SIMULATED STORM — DEMO DATA";
+  if (demoParam === "quiet") return "SIMULATED STORM — DEMO DATA";
+  return "HISTORICAL SAMPLE — HURRICANE IDA · AUG 27 2021";
 }
 
 /** Strongest inGulfBox storm, else strongest storm overall, else null. */
@@ -148,6 +156,10 @@ export interface DashboardData {
     wwlines?: GeoJSON.FeatureCollection;
     models?: GeoJSON.FeatureCollection;
     outlook?: GeoJSON.FeatureCollection;
+    /** Real NHC wind-speed-probability shapefile (34kt threshold), when the
+     *  selected storm's manifest entry carries `files.windprob` — see
+     *  types.ts. undefined for storms without it (most, today). */
+    windProb?: GeoJSON.FeatureCollection;
   };
   intensity: IntensitySeries | null;
   outlookText: { issued: string; text: string } | null;
@@ -213,6 +225,7 @@ export function useDashboard(): DashboardData {
   const intensityUrl = storm ? `${base}/${storm.files.intensity}` : null;
   const probsUrl = storm ? `${base}/${storm.files.probs}` : null;
   const textUrl = storm ? `${base}/${storm.files.text}` : null;
+  const windProbUrl = storm?.files.windprob ? `${base}/${storm.files.windprob}` : null;
   const outlookGeoUrl = manifest ? `${base}/${manifest.outlook.geojson}` : null;
   const outlookTextUrl = manifest ? `${base}/${manifest.outlook.text}` : null;
 
@@ -236,6 +249,7 @@ export function useDashboard(): DashboardData {
   );
   const { data: probs } = useSWR<ProbsEntry[]>(probsUrl, jsonFetcher);
   const { data: textProducts } = useSWR<StormTextProducts>(textUrl, jsonFetcher);
+  const { data: windProb } = useSWR<GeoJSON.FeatureCollection>(windProbUrl, jsonFetcher);
   const { data: outlookText } = useSWR<{ issued: string; text: string }>(
     outlookTextUrl,
     jsonFetcher
@@ -257,6 +271,7 @@ export function useDashboard(): DashboardData {
       wwlines,
       models,
       outlook: outlookGeo,
+      windProb,
     },
     intensity: intensity ?? null,
     outlookText: outlookText ?? null,

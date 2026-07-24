@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findPoint, otherPoints, pointLabel, NEW_ORLEANS_POINT, OTHER_POINTS_ORDER } from "../probs";
+import { findPoint, NEW_ORLEANS_POINT, otherPoints, OTHER_POINTS_ORDER, pointLabel } from "../probs";
 import type { ProbsEntry } from "../types";
 
 const SAMPLE: ProbsEntry[] = [

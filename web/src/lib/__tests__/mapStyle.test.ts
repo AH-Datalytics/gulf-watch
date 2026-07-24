@@ -1,18 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
+  allModelCodes,
   buildGraticule,
   excludeOfficialModel,
   hasAiGuidance,
   mergeFeatureCollections,
+  modelRows,
   outlookAreaLabel,
   outlookColor,
   polygonLabelPoint,
+  resolveGroup,
   trackPointLabel,
+  windProbColor,
   withColor,
   WW_COLORS,
   wwColor,
   type ModeColors,
 } from "../mapStyle";
+
+function line(properties: GeoJSON.GeoJsonProperties): GeoJSON.Feature {
+  return {
+    type: "Feature",
+    properties,
+    geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+  };
+}
 
 // Real token set (copied from globals.css's v2 single light theme) plus a
 // synthetic "alternate" set, so outlookColor()'s independence from
@@ -278,6 +290,79 @@ describe("hasAiGuidance", () => {
       ],
     };
     expect(hasAiGuidance(fc)).toBe(true);
+  });
+});
+
+describe("resolveGroup", () => {
+  // Round 2 (v2 addendum): models.geojson features carry an explicit
+  // "group" property going forward — the whitelist/grouping expansion in
+  // ingest/gulfwatch/adeck.py.
+  it("uses the explicit group property when present", () => {
+    expect(resolveGroup({ kind: "physics", group: "ensemble" })).toBe("ensemble");
+    expect(resolveGroup({ kind: "consensus", group: "consensus" })).toBe("consensus");
+  });
+
+  // Backward compatibility: bertha's committed fixture and the live blob
+  // store (until its next ingest redeploy) predate the "group" property
+  // entirely.
+  it("falls back to kind-based defaults when group is absent", () => {
+    expect(resolveGroup({ kind: "official" })).toBe("official");
+    expect(resolveGroup({ kind: "consensus" })).toBe("consensus");
+    expect(resolveGroup({ kind: "physics" })).toBe("deterministic");
+    expect(resolveGroup({ kind: "ai" })).toBe("deterministic");
+  });
+
+  it("defaults to deterministic for missing/unrecognized properties", () => {
+    expect(resolveGroup(null)).toBe("deterministic");
+    expect(resolveGroup({})).toBe("deterministic");
+  });
+});
+
+describe("modelRows / allModelCodes", () => {
+  const models: GeoJSON.FeatureCollection = {
+    type: "FeatureCollection",
+    features: [
+      line({ model: "OFCL", label: "Official", kind: "official", group: "official" }),
+      line({ model: "AVNO", label: "GFS", kind: "physics", group: "deterministic" }),
+      line({ model: "AVNO", label: "GFS", kind: "physics", group: "deterministic" }), // duplicate, e.g. a second line segment
+      line({ model: "TVCA", label: "Consensus", kind: "consensus", group: "consensus" }),
+      line({ model: "AP01", label: "GEFS 01", kind: "ensemble", group: "ensemble" }),
+      line({ model: "AP02", label: "GEFS 02", kind: "ensemble", group: "ensemble" }),
+    ],
+  };
+
+  it("excludes group===official and dedupes by model code", () => {
+    const rows = modelRows(models);
+    expect(rows.map((r) => r.code).sort()).toEqual(["AP01", "AP02", "AVNO", "TVCA"]);
+    expect(rows.find((r) => r.code === "OFCL")).toBeUndefined();
+  });
+
+  it("returns an empty array for null/undefined input", () => {
+    expect(modelRows(null)).toEqual([]);
+    expect(modelRows(undefined)).toEqual([]);
+  });
+
+  it("allModelCodes mirrors modelRows' codes", () => {
+    expect(allModelCodes(models).sort()).toEqual(["AP01", "AP02", "AVNO", "TVCA"]);
+  });
+});
+
+describe("windProbColor", () => {
+  // Real PERCENTAGE values confirmed against the Hurricane Ida archive's
+  // 2021082718_wsp34knt120hr_5km shapefile (11 graduated bands).
+  it("maps every real NHC WSP percentage band to a distinct color", () => {
+    const bands = [
+      "<5%", "5-10%", "10-20%", "20-30%", "30-40%", "40-50%",
+      "50-60%", "60-70%", "70-80%", "80-90%", ">90%",
+    ];
+    const colors = bands.map(windProbColor);
+    expect(new Set(colors).size).toBe(bands.length); // all distinct
+  });
+
+  it("falls back to a neutral color for an unrecognized/missing band", () => {
+    expect(windProbColor("bogus")).toBe("#8a94a3");
+    expect(windProbColor(undefined)).toBe("#8a94a3");
+    expect(windProbColor(null)).toBe("#8a94a3");
   });
 });
 

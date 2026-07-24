@@ -158,6 +158,76 @@ export function excludeOfficialModel(
   };
 }
 
+/** The four legend/layer-control groups a model track can belong to. */
+export type ModelGroup = "official" | "deterministic" | "consensus" | "ensemble";
+
+/**
+ * Resolves a models.geojson feature's legend/layer-control group.
+ *
+ * Round 2 (v2 addendum) added an explicit `group` property to
+ * models.geojson features (see ingest/gulfwatch/adeck.py) so the frontend
+ * doesn't have to re-derive deterministic/consensus/ensemble from `kind`
+ * alone. Older committed fixtures (bertha, the live production blob store
+ * until its next ingest redeploy) predate that property, so this function
+ * falls back to a kind-based default when `group` is absent — the
+ * "backward compatible" contract the addendum requires: kind "official" ->
+ * group "official", kind "consensus" -> group "consensus", anything else
+ * (kind "physics" or "ai") -> group "deterministic". A real "ensemble"
+ * group value only ever comes from the explicit property (no old fixture
+ * has ever carried ensemble-member features), never from this fallback.
+ */
+export function resolveGroup(props: GeoJSON.GeoJsonProperties): ModelGroup {
+  const explicit = props?.group;
+  if (explicit === "official" || explicit === "deterministic" || explicit === "consensus" || explicit === "ensemble") {
+    return explicit;
+  }
+  const kind = props?.kind;
+  if (kind === "official") return "official";
+  if (kind === "consensus") return "consensus";
+  return "deterministic";
+}
+
+/**
+ * One row per unique model code present in `models` (models.geojson),
+ * excluding group==="official" (OFCL is always drawn as the solid white
+ * official track, never a toggleable legend row — see excludeOfficialModel).
+ * Used to build the ModelLegend's deterministic/consensus checkbox rows AND
+ * to count the ensemble group's member codes — entirely data-driven so the
+ * legend adapts to whatever models a given storm/demo actually carries
+ * (the historical Ida sample's model set is completely different from a
+ * live storm's) rather than a fixed hardcoded whitelist.
+ */
+export interface ModelRow {
+  code: string;
+  label: string;
+  kind: string;
+  group: ModelGroup;
+}
+
+export function modelRows(models: GeoJSON.FeatureCollection | null | undefined): ModelRow[] {
+  if (!models) return [];
+  const seen = new Map<string, ModelRow>();
+  for (const f of models.features) {
+    const code = String(f.properties?.model ?? "");
+    if (!code || seen.has(code)) continue;
+    const group = resolveGroup(f.properties);
+    if (group === "official") continue;
+    seen.set(code, {
+      code,
+      label: String(f.properties?.label ?? code),
+      kind: String(f.properties?.kind ?? ""),
+      group,
+    });
+  }
+  return Array.from(seen.values());
+}
+
+/** Every non-official model code present in `models` — the natural "all
+ *  models on" default for a freshly loaded storm/demo (see page.tsx). */
+export function allModelCodes(models: GeoJSON.FeatureCollection | null | undefined): string[] {
+  return modelRows(models).map((r) => r.code);
+}
+
 /**
  * True iff `models` (models.geojson) actually carries at least one
  * kind==="ai" feature. N9 (final review): ModelLegend.tsx's "AI Guidance"
@@ -367,6 +437,9 @@ export const LAYER_IDS = {
   otherConesLineCasing: "gw-other-cones-line-casing",
   otherConesLine: "gw-other-cones-line",
   wwlines: "gw-wwlines",
+  windProbFill: "gw-windprob-fill",
+  windProbLine: "gw-windprob-line",
+  modelsEnsemble: "gw-models-ensemble",
   modelsSolid: "gw-models-solid",
   modelsDashed: "gw-models-dashed",
   trackLineCasing: "gw-track-line-casing",
@@ -384,10 +457,44 @@ export const SOURCE_IDS = {
   cone: "gw-cone",
   otherCones: "gw-other-cones",
   wwlines: "gw-wwlines",
+  windProb: "gw-windprob",
   models: "gw-models",
   track: "gw-track",
   radar: "gw-radar",
 } as const;
+
+// ---------------------------------------------------------------------------
+// Wind-probability shaded layer (Round 2, v2 addendum — replaces an earlier
+// point-marker "pill" design, dropped mid-build per user feedback in favor
+// of a shaded probability field like NHC's own "wind_probs_34"/
+// "most_likely_toa_34" graphics: https://www.nhc.noaa.gov/gis/ archives a
+// real per-cycle GIS shapefile for exactly this — a graduated-percentage
+// polygon set (11 bands, "<5%".."90%") — which converts through the same
+// gulfwatch.shp.zip_to_geojson pure-shapefile tooling as cone/track/ww.
+// ---------------------------------------------------------------------------
+
+/** Sequential light-yellow -> deep-purple ramp, one stop per NHC WSP
+ *  percentage band (real property values confirmed against the Hurricane
+ *  Ida archive's 2021082718_wsp34knt120hr_5km shapefile). */
+const WIND_PROB_COLORS: Record<string, string> = {
+  "<5%": "#ffe14d",
+  "5-10%": "#ffc93d",
+  "10-20%": "#ffae33",
+  "20-30%": "#ff8f2e",
+  "30-40%": "#fa722f",
+  "40-50%": "#f0532f",
+  "50-60%": "#df3838",
+  "60-70%": "#c22350",
+  "70-80%": "#9c1e6b",
+  "80-90%": "#761c82",
+  ">90%": "#4f1a7a",
+};
+
+/** Maps a WSP polygon's PERCENTAGE property to its fill color; unrecognized/
+ *  missing values fall back to a neutral mid-tone rather than throwing. */
+export function windProbColor(percentage: string | undefined | null): string {
+  return WIND_PROB_COLORS[percentage ?? ""] ?? "#8a94a3";
+}
 
 /** Builds the initial (empty dynamic-source) MapLibre style. Colors are seeded from
  * whatever mode is current at build time; applyModeColors() re-syncs them on mode change. */
@@ -415,6 +522,7 @@ export function buildInitialStyle(): StyleSpecification {
       [SOURCE_IDS.cone]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.otherCones]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.wwlines]: { type: "geojson", data: EMPTY_FC },
+      [SOURCE_IDS.windProb]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.models]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.track]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.radar]: {
@@ -509,21 +617,58 @@ export function buildInitialStyle(): StyleSpecification {
           "line-dasharray": [6, 4],
         },
       },
+      // Wind-probability shaded field (Round 2, v2 addendum) — a graduated
+      // fill (11 percentage bands) under everything else drawn above it
+      // (cone/track/ww/models), matching NHC's own shaded wind-probability
+      // graphics rather than a point marker.
+      {
+        id: LAYER_IDS.windProbFill,
+        type: "fill",
+        source: SOURCE_IDS.windProb,
+        paint: { "fill-color": ["get", "_color"], "fill-opacity": 0.55 },
+      },
+      {
+        id: LAYER_IDS.windProbLine,
+        type: "line",
+        source: SOURCE_IDS.windProb,
+        paint: { "line-color": ["get", "_color"], "line-width": 0.6, "line-opacity": 0.7 },
+      },
       {
         id: LAYER_IDS.wwlines,
         type: "line",
         source: SOURCE_IDS.wwlines,
         paint: { "line-color": ["get", "_color"], "line-width": 3.5, "line-opacity": 0.95 },
       },
+      // Ensemble members (GEFS/ECMWF, Round 2 full-spaghetti expansion) draw
+      // BELOW the named deterministic/consensus/AI lines — there can be
+      // 60+ of them, so they're deliberately thin and faint (a soft white
+      // haze showing the guidance envelope, same "white reads over any
+      // imagery brightness" technique as the track/cone) rather than
+      // competing visually with the handful of named model lines on top.
+      // A blue-gray tone was tried first and read as a muddy smear where it
+      // blended into the basemap's own blue water color (user feedback
+      // while reviewing the running dev server: "kinda weirdly blended") —
+      // white avoids that regardless of what's underneath.
+      {
+        id: LAYER_IDS.modelsEnsemble,
+        type: "line",
+        source: SOURCE_IDS.models,
+        filter: ["==", ["get", "kind"], "ensemble"],
+        paint: {
+          "line-color": ["get", "_color"],
+          "line-width": 0.7,
+          "line-opacity": 0.4,
+        },
+      },
       {
         id: LAYER_IDS.modelsSolid,
         type: "line",
         source: SOURCE_IDS.models,
-        filter: ["!=", ["get", "kind"], "ai"],
+        filter: ["all", ["!=", ["get", "kind"], "ai"], ["!=", ["get", "kind"], "ensemble"]],
         paint: {
           "line-color": ["get", "_color"],
-          "line-width": 1.2,
-          "line-opacity": 0.85,
+          "line-width": 1.6,
+          "line-opacity": 1,
         },
       },
       {
@@ -533,8 +678,8 @@ export function buildInitialStyle(): StyleSpecification {
         filter: ["==", ["get", "kind"], "ai"],
         paint: {
           "line-color": ["get", "_color"],
-          "line-width": 1.4,
-          "line-opacity": 0.9,
+          "line-width": 1.8,
+          "line-opacity": 1,
           "line-dasharray": [2, 2],
         },
       },

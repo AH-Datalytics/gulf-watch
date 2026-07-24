@@ -12,8 +12,8 @@ describe("manifestUrl", () => {
     expect(manifestUrl(null)).toBe("/manifest.json");
   });
 
-  it("?demo=1 fetches the Solene demo manifest", () => {
-    expect(manifestUrl("1")).toBe("/demo/manifest.json");
+  it("?demo=ida fetches the Hurricane Ida historical-sample manifest", () => {
+    expect(manifestUrl("ida")).toBe("/demo/ida/manifest.json");
   });
 
   it("?demo=quiet fetches the quiet-mode demo manifest", () => {
@@ -24,8 +24,15 @@ describe("manifestUrl", () => {
     expect(manifestUrl("bertha")).toBe("/demo/bertha/manifest.json");
   });
 
-  it("any other non-null demo value falls back to the Solene demo manifest", () => {
-    expect(manifestUrl("anything-else")).toBe("/demo/manifest.json");
+  // Round 2 (v2 addendum): the fictional Hurricane Solene demo (formerly
+  // ?demo=1) was retired once the real Ida historical sample landed — any
+  // unrecognized demo value now falls back to Ida instead of Solene.
+  it("?demo=1 (formerly Solene) now falls back to the Ida flagship sample", () => {
+    expect(manifestUrl("1")).toBe("/demo/ida/manifest.json");
+  });
+
+  it("any other non-null demo value falls back to the Ida flagship sample", () => {
+    expect(manifestUrl("anything-else")).toBe("/demo/ida/manifest.json");
   });
 });
 
@@ -34,11 +41,11 @@ describe("demoTag", () => {
     expect(demoTag(null)).toBeNull();
   });
 
-  it("?demo=1 uses the simulated-storm tag", () => {
-    expect(demoTag("1")).toBe("SIMULATED STORM — DEMO DATA");
+  it("?demo=ida uses the historical-sample tag", () => {
+    expect(demoTag("ida")).toBe("HISTORICAL SAMPLE — HURRICANE IDA · AUG 27 2021");
   });
 
-  it("?demo=quiet uses the simulated-storm tag too (unchanged from before Task 12)", () => {
+  it("?demo=quiet uses the simulated-storm tag (unchanged from before Task 12)", () => {
     expect(demoTag("quiet")).toBe("SIMULATED STORM — DEMO DATA");
   });
 
@@ -46,6 +53,10 @@ describe("demoTag", () => {
     const tag = demoTag("bertha");
     expect(tag).toBe("ARCHIVED DATA — TS BERTHA · ADV 016 · JUL 23 2026");
     expect(tag).not.toContain("SIMULATED");
+  });
+
+  it("?demo=1 (formerly Solene) now uses the Ida historical-sample tag", () => {
+    expect(demoTag("1")).toBe("HISTORICAL SAMPLE — HURRICANE IDA · AUG 27 2021");
   });
 });
 

@@ -1,32 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import StormMap from "@/components/StormMap";
 import { IntensityPanel } from "@/components/IntensityPanel";
 import { Rail } from "@/components/Rail";
 import { useMetroAlerts } from "@/components/Alerts";
 import { cdtTime } from "@/lib/format";
+import { DEFAULT_LAYER_STATE, toggleLayer } from "@/lib/layers";
+import { allModelCodes } from "@/lib/mapStyle";
 import { useDashboard } from "@/lib/useDashboard";
-
-// Every guidance model that's toggleable spaghetti on the map (INTENSITY_ONLY
-// DSHP/LGEM are never drawn; OFCL is excluded on purpose — the official NHC
-// track is always drawn from track.geojson's own white 2.2px line/points, so
-// treating OFCL as toggleable spaghetti too would duplicate it and could make
-// it vanish entirely if unchecked; see StormMap.tsx's excludeOfficialModel()).
-// All visible by default; the rail's model legend toggles individual models
-// off, and must agree with this set exactly (its own model list has no OFCL
-// entry either).
-const ALL_MAP_MODELS = new Set(["AVNO", "EMXI", "HFSA", "HFSB", "EGRR", "TVCA", "AIFS", "DMWL"]);
 
 export default function Home() {
   const dashboard = useDashboard();
-  const [visibleModels, setVisibleModels] = useState<Set<string>>(ALL_MAP_MODELS);
-  // Off by default per spec (B3, final review): radar is an opt-in overlay,
-  // toggled via the RADAR button rendered over the map below.
-  const [showRadar, setShowRadar] = useState(false);
+  const [visibleModels, setVisibleModels] = useState<Set<string>>(new Set());
+  const [layers, setLayers] = useState(DEFAULT_LAYER_STATE);
+
+  // Every model track present in the CURRENT storm's models.geojson,
+  // defaulted to "all visible" (Round 2, v2 addendum: a data-driven default
+  // replaces the old hardcoded 8-code whitelist, which can't work anymore
+  // now that different storms/demos carry wildly different model rosters —
+  // the historical Ida sample alone has ~80 track features). Re-seeded only
+  // when the SELECTED storm/model-cycle actually changes, so toggling
+  // individual checkboxes in the rail doesn't get stomped by this effect on
+  // every unrelated re-render.
+  const modelsKey = dashboard.storm ? `${dashboard.storm.id}:${dashboard.storm.modelCycle}` : "";
+  const lastModelsKeyRef = useRef<string>("");
+  useEffect(() => {
+    if (!dashboard.geo.models) return;
+    if (lastModelsKeyRef.current === modelsKey) return;
+    lastModelsKeyRef.current = modelsKey;
+    setVisibleModels(new Set(allModelCodes(dashboard.geo.models)));
+  }, [dashboard.geo.models, modelsKey]);
 
   const { rows: alerts } = useMetroAlerts();
   const hasHurricaneWarning = alerts.some((a) => a.event.includes("Hurricane Warning"));
+
+  const hasGraphs = dashboard.mode === "active" && !!dashboard.storm && !!dashboard.intensity;
 
   return (
     <div className="app-shell">
@@ -67,17 +76,19 @@ export default function Home() {
             geo={dashboard.geo}
             mode={dashboard.mode}
             visibleModels={visibleModels}
-            showRadar={showRadar}
-            onToggleRadar={() => setShowRadar((v) => !v)}
+            layers={layers}
+            onLayersToggle={(key) => setLayers((s) => toggleLayer(s, key))}
+            hasGraphs={hasGraphs}
             otherStorms={dashboard.otherStorms}
           />
           {dashboard.demo && <div className="simtag">{dashboard.demoTag}</div>}
-          {dashboard.mode === "active" && dashboard.storm && dashboard.intensity && (
+          {hasGraphs && layers.graphs && dashboard.storm && dashboard.intensity && (
             <IntensityPanel
               intensity={dashboard.intensity}
               storm={dashboard.storm}
               track={dashboard.geo.track}
               visibleModels={visibleModels}
+              onClose={() => setLayers((s) => toggleLayer(s, "graphs"))}
             />
           )}
         </div>

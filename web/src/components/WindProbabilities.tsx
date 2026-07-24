@@ -29,16 +29,19 @@ export function WindProbabilities({ probs }: WindProbabilitiesProps) {
     <div>
       <div className="kicker">Wind chances in New Orleans</div>
       {nola ? (
-        <div className="wind-hero">
-          <div className="wind-hero-stat">
-            <div className="wind-hero-value num">{nola.ts34}%</div>
-            <div className="wind-hero-label">Chance of tropical storm force winds</div>
+        <>
+          <div className="wind-hero-window">Over the next 5 days (120 hours)</div>
+          <div className="wind-hero">
+            <div className="wind-hero-stat">
+              <div className="wind-hero-value num">{nola.ts34}%</div>
+              <div className="wind-hero-label">Chance of tropical storm force winds</div>
+            </div>
+            <div className="wind-hero-stat">
+              <div className="wind-hero-value num">{nola.hurricane64}%</div>
+              <div className="wind-hero-label">Chance of hurricane force winds</div>
+            </div>
           </div>
-          <div className="wind-hero-stat">
-            <div className="wind-hero-value num">{nola.hurricane64}%</div>
-            <div className="wind-hero-label">Chance of hurricane force winds</div>
-          </div>
-        </div>
+        </>
       ) : (
         <p className="body-text">Wind probability data isn&apos;t available for New Orleans on this advisory.</p>
       )}

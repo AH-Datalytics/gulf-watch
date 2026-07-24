@@ -31,8 +31,8 @@ def series_for(result, model):
 
 def test_constants():
     assert KT_TO_MPH == 1.15078
-    assert MODELS["OFCL"] == ("Official", "official")
-    assert INTENSITY_ONLY == {"DSHP", "LGEM"}
+    assert MODELS["OFCL"] == ("Official", "official", "official")
+    assert INTENSITY_ONLY == {"DSHP", "LGEM", "IVCN"}
 
 
 def test_top_level_shape(result):
@@ -93,6 +93,7 @@ def test_models_geojson_properties_match_contract(result):
         "model": "AVNO",
         "label": "GFS",
         "kind": "physics",
+        "group": "deterministic",
         "cycle": "2026072218",
     }
     assert avno["geometry"]["type"] == "LineString"
@@ -163,3 +164,74 @@ def test_vmax_zero_keeps_track_but_not_intensity(result):
     assert len(tvca["geometry"]["coordinates"]) == 2
     tvca_series = series_for(result, "TVCA")
     assert [p["tauH"] for p in tvca_series["points"]] == [12]
+
+
+# --- Round 2 (v2 addendum): expanded whitelist / group / ensemble tests ---
+
+
+def test_group_field_present_for_named_models(result):
+    ofcl = feature_for(result, "OFCL")
+    assert ofcl["properties"]["group"] == "official"
+
+    avno = feature_for(result, "AVNO")
+    assert avno["properties"]["group"] == "deterministic"
+    tvca = feature_for(result, "TVCA")
+    assert tvca["properties"]["group"] == "consensus"
+
+
+def test_gefs_ensemble_member_recognized():
+    text = (
+        "AL, 09, 2026072200, 03, OFCL,   0, 255N,  875W,  85,  970, HU\n"
+        "AL, 09, 2026072200, 03, AP01,   0, 256N,  876W,  60,  990, HU\n"
+        "AL, 09, 2026072200, 03, AP01,  12, 257N,  878W,  65,  985, HU\n"
+    )
+    result = parse_adeck(text)
+    ap01 = feature_for(result, "AP01")
+    assert ap01 is not None
+    assert ap01["properties"]["kind"] == "ensemble"
+    assert ap01["properties"]["group"] == "ensemble"
+    assert ap01["properties"]["label"] == "GEFS 01"
+    assert len(ap01["geometry"]["coordinates"]) == 2
+    # Ensemble members never contribute an intensity series entry (would
+    # clutter the intensity chart with 30+ extra lines with no per-member
+    # toggle to isolate one).
+    assert series_for(result, "AP01") is None
+
+
+def test_ecmwf_ensemble_member_recognized():
+    text = "AL, 09, 2026072200, 03, UE07,   0, 256N,  876W,  60,  990, HU\n"
+    result = parse_adeck(text)
+    ue07 = feature_for(result, "UE07")
+    assert ue07 is not None
+    assert ue07["properties"]["kind"] == "ensemble"
+    assert ue07["properties"]["group"] == "ensemble"
+    assert ue07["properties"]["label"] == "ECMWF Ens 07"
+
+
+def test_unrecognized_tech_still_skipped():
+    # A tech that matches neither a named model nor the ensemble patterns
+    # (e.g. CARQ, or a 3-digit oddball) is still skipped entirely, same as
+    # before the whitelist expansion.
+    text = "AL, 09, 2026072200, 03, CARQ,   0, 255N,  875W,  85,  970, HU\n"
+    result = parse_adeck(text)
+    assert feature_for(result, "CARQ") is None
+    assert result["models_geojson"]["features"] == []
+
+
+def test_ivcn_zero_position_still_yields_intensity():
+    # IVCN (Intensity Consensus) structurally reports 0N/0W for every row in
+    # real ATCF data (confirmed against the Hurricane Ida al092021 archive
+    # deck) -- unlike AVNO's junk tau=48 zero-position row (which IS
+    # dropped, see test_junk_zero_latlon_row_skipped), IVCN's zero position
+    # is the normal case for this track-less intensity aid and must not
+    # suppress its intensity value.
+    text = (
+        "AL, 09, 2026072200, 03, IVCN,   0,   0N,    0W,  70,    0, HU\n"
+        "AL, 09, 2026072200, 03, IVCN,  12,   0N,    0W,  79,    0, HU\n"
+    )
+    result = parse_adeck(text)
+    assert feature_for(result, "IVCN") is None  # INTENSITY_ONLY: no map track
+    ivcn_series = series_for(result, "IVCN")
+    assert ivcn_series is not None
+    assert [p["tauH"] for p in ivcn_series["points"]] == [0, 12]
+    assert ivcn_series["points"][0]["mph"] == round(70 * KT_TO_MPH)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -24,13 +24,18 @@ export interface IntensityPanelProps {
   storm: StormEntry;
   track?: GeoJSON.FeatureCollection;
   visibleModels: Set<string>;
+  /** Fully hides the panel (same effect as unchecking "Graphs" in the map's
+   *  Layers control) — rendered as a small × next to the collapse handle. */
+  onClose: () => void;
 }
 
 // Series with no map-toggle checkbox in ModelLegend (they're intensity-only
-// statistical guidance with no forecast track to draw) — these always
-// render here regardless of `visibleModels`, same as OFCL, because there's
-// no other UI for a user to ever make them visible otherwise.
-const ALWAYS_ON_MODELS = new Set(["OFCL", "DSHP", "LGEM"]);
+// statistical/consensus guidance with no forecast track to draw) — these
+// always render here regardless of `visibleModels`, same as OFCL, because
+// there's no other UI for a user to ever make them visible otherwise. IVCN
+// (Intensity Consensus) joined DSHP/LGEM in Round 2 — it structurally has
+// no ATCF position either (see ingest/gulfwatch/adeck.py's INTENSITY_ONLY).
+const ALWAYS_ON_MODELS = new Set(["OFCL", "DSHP", "LGEM", "IVCN"]);
 
 // A band whose visible slice (after clamping to yMax) is thinner than this
 // many mph renders as an unreadable sliver whose right-edge label collides
@@ -120,7 +125,15 @@ function IntensityTooltip({ active, payload, label, advisoryTime }: IntensityToo
  * active mode only. Design per docs/superpowers/specs/two-moods-v2-mockup.html's
  * .ipanel block.
  */
-export function IntensityPanel({ intensity, storm, track, visibleModels }: IntensityPanelProps) {
+export function IntensityPanel({ intensity, storm, track, visibleModels, onClose }: IntensityPanelProps) {
+  // Round 2 (v2 addendum): the panel is now a pop-out card that floats over
+  // the bottom of the map (not an in-flow sibling that permanently shrinks
+  // the map's visible area — see globals.css's .ipanel comment) and can be
+  // collapsed to just its header bar without fully closing it, in addition
+  // to the Layers control's "Graphs" checkbox (which unmounts it entirely
+  // via onClose).
+  const [collapsed, setCollapsed] = useState(false);
+
   const displayedSeries = useMemo(() => {
     const filtered = intensity.series.filter(
       (s) => ALWAYS_ON_MODELS.has(s.model) || visibleModels.has(s.model)
@@ -155,12 +168,30 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
   );
 
   return (
-    <div className="ipanel">
+    <div className={`ipanel${collapsed ? " collapsed" : ""}`}>
       <div className="head">
-        <div className="t">Intensity guidance — max sustained winds, next {maxTauH}h</div>
-        <div className="s">Official NHC forecast in navy · AI guidance dashed</div>
+        <div>
+          <div className="t">Intensity guidance — max sustained winds, next {maxTauH}h</div>
+          {!collapsed && <div className="s">Official NHC forecast in navy · AI guidance dashed</div>}
+        </div>
+        <div className="ipanel-controls">
+          <button
+            type="button"
+            className="ipanel-btn"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand" : "Collapse"}
+          >
+            {collapsed ? "▲" : "▼"}
+          </button>
+          <button type="button" className="ipanel-btn" onClick={onClose} title="Close">
+            ×
+          </button>
+        </div>
       </div>
-      <ResponsiveContainer width="100%" height={258}>
+      {!collapsed && (
+      <div className="ipanel-chart">
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 20, right: 46, bottom: 4, left: 4 }}>
           <XAxis
             dataKey="tauH"
@@ -253,6 +284,8 @@ export function IntensityPanel({ intensity, storm, track, visibleModels }: Inten
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
+      )}
     </div>
   );
 }
