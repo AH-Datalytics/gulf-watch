@@ -11,6 +11,7 @@ import {
   polygonLabelPoint,
   resolveGroup,
   trackPointLabel,
+  WIND_PROB_BANDS,
   windProbColor,
   withColor,
   WW_COLORS,
@@ -363,6 +364,19 @@ describe("windProbColor", () => {
     expect(windProbColor("bogus")).toBe("#8a94a3");
     expect(windProbColor(undefined)).toBe("#8a94a3");
     expect(windProbColor(null)).toBe("#8a94a3");
+  });
+});
+
+describe("WIND_PROB_BANDS", () => {
+  // Backs the Layers control's wind-probability legend (Round 2 addendum).
+  it("has all 11 real NHC WSP bands, low to high, matching windProbColor", () => {
+    expect(WIND_PROB_BANDS.map((b) => b.label)).toEqual([
+      "<5%", "5-10%", "10-20%", "20-30%", "30-40%", "40-50%",
+      "50-60%", "60-70%", "70-80%", "80-90%", ">90%",
+    ]);
+    for (const band of WIND_PROB_BANDS) {
+      expect(band.color).toBe(windProbColor(band.label));
+    }
   });
 });
 

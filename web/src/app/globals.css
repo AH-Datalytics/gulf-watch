@@ -476,7 +476,52 @@ a {
   text-decoration: underline;
 }
 
-/* ============ Forecast models (ModelLegend.tsx) ============ */
+/* ============ Forecast models (ModelLegend.tsx) — a dropdown filter,
+   closed by default (Round 2, v2 addendum: "baseball savant style"), rather
+   than a permanently-open block of ~18 checkboxes. ============ */
+.model-select {
+  position: relative;
+}
+
+.model-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--panel-muted);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.model-select-trigger:hover {
+  border-color: var(--ink-dim);
+}
+
+.model-select-trigger .chev {
+  color: var(--ink-dim);
+  font-size: 10px;
+}
+
+.model-select-panel {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 14px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 .models {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -768,6 +813,36 @@ a {
 .layers-divider {
   border-top: 1px solid var(--rule);
   margin: 2px 0;
+}
+
+/* Wind-probability legend — a small graduated color strip under the Wind
+   probability row, shown only while that layer is on and has real data. */
+.windprob-legend {
+  margin: -2px 0 2px 22px;
+}
+
+.windprob-legend-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.windprob-legend-bar span {
+  flex: 1;
+}
+
+.windprob-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+
+.windprob-legend-labels span:nth-child(2) {
+  flex: 1;
+  text-align: center;
 }
 
 /* ============ Quiet-mode map furniture (StormMap.tsx) ============ */

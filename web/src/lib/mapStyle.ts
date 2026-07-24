@@ -496,6 +496,13 @@ export function windProbColor(percentage: string | undefined | null): string {
   return WIND_PROB_COLORS[percentage ?? ""] ?? "#8a94a3";
 }
 
+/** Ordered [label, color] pairs for the wind-probability legend
+ *  (LayersControl.tsx) — same 11 bands/colors as windProbColor, just as a
+ *  renderable list rather than a lookup map. */
+export const WIND_PROB_BANDS: { label: string; color: string }[] = Object.entries(WIND_PROB_COLORS).map(
+  ([label, color]) => ({ label, color })
+);
+
 /** Builds the initial (empty dynamic-source) MapLibre style. Colors are seeded from
  * whatever mode is current at build time; applyModeColors() re-syncs them on mode change. */
 export function buildInitialStyle(): StyleSpecification {

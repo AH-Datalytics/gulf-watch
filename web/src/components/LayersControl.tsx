@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { LayerKey, LayerState } from "@/lib/layers";
+import { WIND_PROB_BANDS } from "@/lib/mapStyle";
 
 export interface LayersControlProps {
   layers: LayerState;
@@ -62,6 +63,20 @@ export function LayersControl({ layers, onToggle, hasWindProb, hasGraphs }: Laye
             />
             Wind probability
           </label>
+          {hasWindProb && layers.windProb && (
+            <div className="windprob-legend">
+              <div className="windprob-legend-bar">
+                {WIND_PROB_BANDS.map((b) => (
+                  <span key={b.label} style={{ background: b.color }} title={`${b.label} chance of TS-force winds`} />
+                ))}
+              </div>
+              <div className="windprob-legend-labels">
+                <span>&lt;5%</span>
+                <span>Chance of TS-force winds</span>
+                <span>&gt;90%</span>
+              </div>
+            </div>
+          )}
           <label className="layer-row disabled">
             <input type="checkbox" checked={false} disabled readOnly />
             Rain
@@ -79,7 +94,7 @@ export function LayersControl({ layers, onToggle, hasWindProb, hasGraphs }: Laye
               disabled={!hasGraphs}
               onChange={() => onToggle("graphs")}
             />
-            Graphs
+            Intensity guidance
           </label>
         </div>
       )}

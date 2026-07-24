@@ -36,7 +36,7 @@ describe("otherPoints", () => {
   });
 
   it("respects the documented order constant", () => {
-    expect(OTHER_POINTS_ORDER).toEqual(["GRAND ISLE LA", "HOUMA LA", "SLIDELL LA", "GULFPORT MS"]);
+    expect(OTHER_POINTS_ORDER).toEqual(["GRAND ISLE LA", "HOUMA LA", "SLIDELL LA"]);
   });
 });
 

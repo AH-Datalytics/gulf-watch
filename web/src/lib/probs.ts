@@ -6,9 +6,13 @@ import type { ProbsEntry } from "./types";
 export const NEW_ORLEANS_POINT = "NEW ORLEANS LA";
 
 /** Display order for the "nearby points" table — Grand Isle, Houma, Slidell,
- *  Gulfport, shown only when present in the parsed probs (per the addendum:
- *  "small table of nearby points ... if present"). */
-export const OTHER_POINTS_ORDER = ["GRAND ISLE LA", "HOUMA LA", "SLIDELL LA", "GULFPORT MS"];
+ *  shown only when present in the parsed probs (per the addendum: "small
+ *  table of nearby points ... if present"). Gulfport dropped mid-build per
+ *  direct user feedback ("lose the gulfport nearby, not needed") — this is
+ *  a display-order change only; ingest's probs.py TARGET_POINTS whitelist
+ *  (what NHC data gets captured at all) is untouched, so a Gulfport row
+ *  simply never renders even if a future advisory's probs.json carries it. */
+export const OTHER_POINTS_ORDER = ["GRAND ISLE LA", "HOUMA LA", "SLIDELL LA"];
 
 /** Finds a named point's row, or null if it's not in this advisory's table. */
 export function findPoint(probs: ProbsEntry[] | null | undefined, point: string): ProbsEntry | null {
