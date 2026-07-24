@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "redirects": [
+    {
+      "source": "/demo/ida",
+      "destination": "/?demo=ida",
+      "permanent": false
+    }
+  ]
+}
