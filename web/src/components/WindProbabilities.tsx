@@ -19,26 +19,28 @@ export interface WindProbabilitiesProps {
  */
 export function WindProbabilities({ probs }: WindProbabilitiesProps) {
   if (probs === null) {
-    return <div className="kicker">Wind chances in New Orleans</div>;
+    return <div className="wind-section"><div className="kicker">Wind probability</div></div>;
   }
 
   const nola = findPoint(probs, NEW_ORLEANS_POINT);
   const others = otherPoints(probs);
 
   return (
-    <div>
-      <div className="kicker">Wind chances in New Orleans</div>
+    <div className="wind-section">
+      <div className="kicker">Wind probability</div>
       {nola ? (
         <>
-          <div className="wind-hero-window">Over the next 5 days (120 hours)</div>
-          <div className="wind-hero">
-            <div className="wind-hero-stat">
-              <div className="wind-hero-value num">{nola.ts34}%</div>
-              <div className="wind-hero-label">Chance of tropical storm force winds</div>
+          <div className="wind-hero-window">New Orleans · next 5 days</div>
+          <div className="wind-prob-list">
+            <div className="wind-prob-row">
+              <span>≥ 39 mph</span>
+              <i><b style={{ width: `${nola.ts34}%` }} /></i>
+              <strong className="num">{nola.ts34}%</strong>
             </div>
-            <div className="wind-hero-stat">
-              <div className="wind-hero-value num">{nola.hurricane64}%</div>
-              <div className="wind-hero-label">Chance of hurricane force winds</div>
+            <div className="wind-prob-row hurricane">
+              <span>≥ 74 mph</span>
+              <i><b style={{ width: `${nola.hurricane64}%` }} /></i>
+              <strong className="num">{nola.hurricane64}%</strong>
             </div>
           </div>
         </>
@@ -46,26 +48,29 @@ export function WindProbabilities({ probs }: WindProbabilitiesProps) {
         <p className="body-text">Wind probability data isn&apos;t available for New Orleans on this advisory.</p>
       )}
       {others.length > 0 && (
-        <table className="wind-table">
-          <thead>
-            <tr>
-              <th>Nearby</th>
-              <th>TS force</th>
-              <th>50+ mph</th>
-              <th>Hurricane</th>
-            </tr>
-          </thead>
-          <tbody>
-            {others.map((p) => (
-              <tr key={p.point}>
-                <td>{pointLabel(p.point)}</td>
-                <td className="num">{p.ts34}%</td>
-                <td className="num">{p.kt50}%</td>
-                <td className="num">{p.hurricane64}%</td>
+        <details className="nearby-wind-details">
+          <summary>Wind chances at nearby locations</summary>
+          <table className="wind-table">
+            <thead>
+              <tr>
+                <th>Nearby</th>
+                <th>TS force</th>
+                <th>50+ mph</th>
+                <th>Hurricane</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {others.map((p) => (
+                <tr key={p.point}>
+                  <td>{pointLabel(p.point)}</td>
+                  <td className="num">{p.ts34}%</td>
+                  <td className="num">{p.kt50}%</td>
+                  <td className="num">{p.hurricane64}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
       )}
     </div>
   );

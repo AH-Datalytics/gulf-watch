@@ -30,6 +30,7 @@ BERTHA_PWS_SHTML = (FIXTURES / "bertha_pws.shtml").read_text(encoding="utf-8")
 # real advisory-14a data with cone/track/wwlines all pointing at the same
 # bundled "5day" zip -- see task-nhc.py's own tests for the raw values.
 BERTHA_GIS_URL = "https://www.nhc.noaa.gov/gis/forecast/archive/al022026_5day_014A.zip"
+BERTHA_WIND_FIELD_URL = "https://www.nhc.noaa.gov/gis/forecast/archive/al022026_fcst_014A.zip"
 BERTHA_ADECK_URL = ADECK_URL_TEMPLATE.format(stormid="al022026")
 
 # Bertha's text-product URLs, from the current_storms.json fixture's
@@ -40,7 +41,7 @@ BERTHA_PROBS_URL = "https://www.nhc.noaa.gov/text/MIAPWSAT2.shtml"
 
 # The TWO RSS item's pubDate in the committed index-at.xml fixture (see
 # test_outlook.py's test_real_fixture_issued_parses_to_iso8601).
-OUTLOOK_ISSUED = "2026-07-22T23:06:25Z"
+OUTLOOK_ISSUED = "2026-07-23T00:00:00Z"
 
 BERTHA_ADECK_TEXT = (
     "AL, 02, 2026072200, 03, OFCL,   0, 295N,  905W,  40, 1002, TS\n"
@@ -144,6 +145,9 @@ def _bertha_text_product_routes():
         BERTHA_DISCUSSION_URL: FakeResponse(text=BERTHA_DISCUSSION_SHTML),
         BERTHA_ADVISORY_URL: FakeResponse(text=BERTHA_PUBLIC_ADVISORY_SHTML),
         BERTHA_PROBS_URL: FakeResponse(text=BERTHA_PWS_SHTML),
+        # The sample zip has no initialradii member, but it exercises the
+        # independent fetch/convert/upload path without adding a binary fixture.
+        BERTHA_WIND_FIELD_URL: FakeResponse(content=SAMPLE_CONE_ZIP),
     }
 
 
@@ -223,6 +227,7 @@ def test_active_path_all_five_storm_files_uploaded_and_state_advanced():
         "cone": "storms/al022026/cone.geojson",
         "track": "storms/al022026/track.geojson",
         "wwlines": "storms/al022026/wwlines.geojson",
+        "windfield": "storms/al022026/windfield.geojson",
         "models": "storms/al022026/models.geojson",
         "intensity": "storms/al022026/intensity.json",
         "text": "storms/al022026/text.json",
@@ -259,6 +264,7 @@ def test_active_path_all_five_storm_files_uploaded_and_state_advanced():
     assert {f["properties"]["shapefile"] for f in ww_fc["features"]} == {
         "al022026-014A_ww_wwlin"
     }
+    assert store.data["storms/al022026/windfield.geojson"]["features"] == []
 
     assert store.data["state.json"]["storms"]["al022026"] == {
         "advisory": "014a",

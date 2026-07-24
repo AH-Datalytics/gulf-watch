@@ -240,7 +240,9 @@ def test_real_fixture_issued_parses_to_iso8601(result):
     from datetime import datetime
 
     datetime.fromisoformat(issued.replace("Z", "+00:00"))
-    assert issued == "2026-07-22T23:06:25Z"
+    # Use the official time printed in the bulletin body, not the RSS
+    # publication timestamp (23:06:25Z).
+    assert issued == "2026-07-23T00:00:00Z"
 
 
 def test_real_fixture_top_level_shape(result):
@@ -275,6 +277,19 @@ def test_parse_outlook_text_strips_br_tags():
     assert "line one" in parsed["text"]
     assert "line three" in parsed["text"]
     assert parsed["issued"] == "2026-07-22T23:06:25Z"
+
+
+def test_parse_outlook_text_prefers_official_bulletin_time_over_pubdate():
+    rss = """<?xml version="1.0"?>
+<rss version="2.0"><channel>
+<item>
+<title>Atlantic Tropical Weather Outlook</title>
+<description>Tropical Weather Outlook&lt;br/&gt;NWS National Hurricane Center Miami FL&lt;br/&gt;200 PM EDT Fri Jul 24 2026</description>
+<pubDate>Fri, 24 Jul 2026 17:13:24 GMT</pubDate>
+</item>
+</channel></rss>"""
+    parsed = parse_outlook_text(rss)
+    assert parsed["issued"] == "2026-07-24T18:00:00Z"
 
 
 def test_parse_outlook_text_raises_when_two_item_missing():

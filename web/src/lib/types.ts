@@ -18,6 +18,9 @@ export interface StormEntry {
   inGulfBox: boolean;
   modelCycle: string;
   files: Record<"cone" | "track" | "wwlines" | "models" | "intensity" | "text" | "probs", string> & {
+    /** Observed/pre-advisory storm path, when available. Kept separate from
+     * the forecast track so the map can distinguish history from guidance. */
+    history?: string;
     /** Real NHC GIS wind-speed-probability shapefile (34kt/TS-force
      *  threshold) converted to GeoJSON — 11 graduated probability-percentage
      *  polygons ("<5%".."90%"), used by the map's shaded Wind probability
@@ -25,7 +28,24 @@ export interface StormEntry {
      *  today (see ingest/scripts/build_ida_sample.py); bertha/live entries
      *  simply omit the key, and the map layer disables gracefully. */
     windprob?: string;
+    /** 50kt (~58 mph) and 64kt (~74 mph) WSP probability polygons. */
+    windprob50?: string;
+    windprob64?: string;
+    /** NHC current/initial analyzed 34, 50, and 64 kt wind radii. */
+    windfield?: string;
   };
+  /** Archived weather-satellite image for the advisory period. This is
+   * intentionally a pop-out image, not a georeferenced map layer. */
+  satellite?: {
+    image: string;
+    issued: string;
+    sourceLabel: string;
+    sourceUrl: string;
+    bounds: [[number, number], [number, number]];
+  };
+  /** Optional historical snapshots for in-place advisory replay. Live
+   * manifests omit this and continue using the top-level storm fields. */
+  advisories?: StormEntry[];
 }
 
 export interface Manifest {

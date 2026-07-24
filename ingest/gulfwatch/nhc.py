@@ -30,6 +30,7 @@ _GIS_FIELD_BY_KEY = {
     "cone": "trackCone",
     "track": "forecastTrack",
     "wwlines": "windWatchesWarnings",
+    "windfield": "initialWindExtent",
 }
 
 # Gulf of Mexico box (mode rule + "relevant storm"): lon -98..-80, lat 18..31.
@@ -109,7 +110,8 @@ def _gis_url(storm_json: dict, key: str) -> str:
     product = storm_json.get(_GIS_FIELD_BY_KEY[key])
     if product and product.get("zipFile"):
         return product["zipFile"]
-    return GIS_LATEST_URL_PATTERNS[key].format(id=storm_json["id"].upper())
+    pattern = GIS_LATEST_URL_PATTERNS.get(key)
+    return pattern.format(id=storm_json["id"].upper()) if pattern else ""
 
 
 def parse_current_storms(data: dict) -> list[Storm]:

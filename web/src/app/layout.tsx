@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ModeGate } from "./ModeGate";
+import { DashboardProvider } from "@/lib/useDashboard";
 
 export const metadata: Metadata = {
   title: "The Gulf Watch — New Orleans Tropical Weather",
@@ -16,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ModeGate>{children}</ModeGate>
+        <DashboardProvider>
+          <ModeGate>{children}</ModeGate>
+        </DashboardProvider>
       </body>
     </html>
   );

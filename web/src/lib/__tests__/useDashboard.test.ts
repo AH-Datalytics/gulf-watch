@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { computeStale, demoTag, manifestUrl, otherStorms, selectStorm } from "../useDashboard";
+import {
+  computeStale,
+  demoTag,
+  manifestUrl,
+  otherStorms,
+  selectAdvisory,
+  selectStorm,
+} from "../useDashboard";
 import type { Manifest, StormEntry } from "../types";
 
 // Pure demo-variant -> manifest URL / map-corner tag mapping (Task 12: the
@@ -42,7 +49,7 @@ describe("demoTag", () => {
   });
 
   it("?demo=ida uses the historical-sample tag", () => {
-    expect(demoTag("ida")).toBe("HISTORICAL SAMPLE — HURRICANE IDA · AUG 27 2021");
+    expect(demoTag("ida")).toBe("HISTORICAL SAMPLE — HURRICANE IDA · AUG 27–28 2021");
   });
 
   it("?demo=quiet uses the simulated-storm tag (unchanged from before Task 12)", () => {
@@ -56,7 +63,7 @@ describe("demoTag", () => {
   });
 
   it("?demo=1 (formerly Solene) now uses the Ida historical-sample tag", () => {
-    expect(demoTag("1")).toBe("HISTORICAL SAMPLE — HURRICANE IDA · AUG 27 2021");
+    expect(demoTag("1")).toBe("HISTORICAL SAMPLE — HURRICANE IDA · AUG 27–28 2021");
   });
 });
 
@@ -146,6 +153,37 @@ describe("selectStorm", () => {
     const weak = makeStorm({ id: "a", intensityMph: 40, inGulfBox: false });
     const strong = makeStorm({ id: "b", intensityMph: 90, inGulfBox: false });
     expect(selectStorm([weak, strong])?.id).toBe("b");
+  });
+
+  it("honors an explicit storm selection even when it is not the strongest", () => {
+    const stronger = makeStorm({ id: "al012026", name: "Alpha", intensityMph: 120 });
+    const selected = makeStorm({ id: "al022026", name: "Beta", intensityMph: 55 });
+    expect(selectStorm([stronger, selected], "al022026")?.id).toBe("al022026");
+  });
+
+  it("falls back to the strongest Gulf threat for an invalid storm id", () => {
+    const weaker = makeStorm({ id: "al012026", intensityMph: 55 });
+    const stronger = makeStorm({ id: "al022026", intensityMph: 100 });
+    expect(selectStorm([weaker, stronger], "missing")?.id).toBe("al022026");
+  });
+});
+
+describe("selectAdvisory", () => {
+  const advisory6 = makeStorm({ advisoryNum: "6", intensityMph: 81 });
+  const advisory7 = makeStorm({ advisoryNum: "7", intensityMph: 81 });
+  const replay = { ...advisory6, advisories: [advisory6, advisory7] };
+
+  it("selects a requested historical frame", () => {
+    expect(selectAdvisory(replay, "7")?.advisoryNum).toBe("7");
+  });
+
+  it("defaults an invalid or missing request to the first frame", () => {
+    expect(selectAdvisory(replay, "99")?.advisoryNum).toBe("6");
+    expect(selectAdvisory(replay)?.advisoryNum).toBe("6");
+  });
+
+  it("leaves ordinary live storm entries unchanged", () => {
+    expect(selectAdvisory(advisory6, "7")).toBe(advisory6);
   });
 });
 

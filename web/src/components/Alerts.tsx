@@ -36,8 +36,8 @@ export function Alerts({ mode }: AlertsProps) {
 
   if (unavailable) {
     return (
-      <div>
-        <div className="kicker">Watches &amp; warnings</div>
+      <div className="alerts-section">
+        <div className="kicker">Warning summary</div>
         <p className="alert-unavailable">Alerts unavailable — check weather.gov</p>
       </div>
     );
@@ -46,8 +46,8 @@ export function Alerts({ mode }: AlertsProps) {
   if (mode === "quiet" && rows.length === 0) return null;
 
   return (
-    <div>
-      <div className="kicker">Watches &amp; warnings</div>
+    <div className="alerts-section">
+      <div className="kicker">Warning summary</div>
       {rows.length === 0 ? (
         <p className="body-text">No active watches or warnings for the metro parishes.</p>
       ) : (

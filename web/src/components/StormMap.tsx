@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GeoJSONSource, Map as MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
+import useSWR from "swr";
+import { GeoJSONSource, ImageSource, Map as MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { LayerKey, LayerState } from "@/lib/layers";
-import type { Mode } from "@/lib/types";
+import type { LayerKey, LayerState, WindThreshold } from "@/lib/layers";
+import type { Mode, TextProduct } from "@/lib/types";
 import type { OtherStorm } from "@/lib/useDashboard";
+import { ForecastDiscussion } from "./ForecastDiscussion";
 import { LayersControl } from "./LayersControl";
 import {
   applyModeColors,
@@ -24,12 +26,14 @@ import {
   readModeColors,
   resolveGroup,
   SOURCE_IDS,
+  stormSymbolKind,
   trackPointLabel,
   windProbColor,
   withColor,
   wwColor,
 } from "@/lib/mapStyle";
 import { DEFAULT_MODEL_COLOR, ENSEMBLE_COLOR, MODEL_COLORS } from "@/lib/modelColors";
+import { cdtDateTime } from "@/lib/format";
 
 // maplibre-gl resolves its worker script relative to its own module's
 // `import.meta.url` at runtime (see web_worker.ts's defaultWorkerUrl()).
@@ -50,34 +54,61 @@ export interface StormMapProps {
   geo: {
     cone?: GeoJSON.FeatureCollection;
     track?: GeoJSON.FeatureCollection;
+    history?: GeoJSON.FeatureCollection;
     wwlines?: GeoJSON.FeatureCollection;
     models?: GeoJSON.FeatureCollection;
     outlook?: GeoJSON.FeatureCollection;
+    /** NHC analyzed 34/50/64 kt wind radii at advisory time. */
+    windFieldUrl?: string;
     /** Real NHC wind-speed-probability shapefile (34kt threshold) — see
      *  types.ts's StormEntry.files.windprob; undefined for storms without
      *  one (most, today — only the Ida historical sample carries it). */
-    windProb?: GeoJSON.FeatureCollection;
+    windProbUrls: Partial<Record<WindThreshold, string>>;
+    satellite?: {
+      url: string;
+      issued: string;
+      sourceLabel: string;
+      sourceUrl: string;
+      bounds: [[number, number], [number, number]];
+    };
   };
   mode: Mode;
   visibleModels: Set<string>;
+  onVisibleModelsChange: (next: Set<string>) => void;
+  modelCycleLabel?: string;
   /** Unified map-layers control state (v2 addendum Round 2) — lifted to
    *  page.tsx; the LayersControl panel rendered here is a controlled/
    *  presentational component only (see lib/layers.ts). Replaces the old
    *  standalone floating RADAR button. */
   layers: LayerState;
   onLayersToggle: (key: LayerKey) => void;
+  windThreshold: WindThreshold;
+  onWindThresholdChange: (threshold: WindThreshold) => void;
   /** Whether the intensity panel actually has anything to show right now
    *  (active mode, a selected storm, intensity data loaded) — forwarded to
    *  LayersControl so the Graphs checkbox disables rather than lying about
    *  what toggling it will do. */
   hasGraphs: boolean;
+  /** Full NHC outlook prose in quiet mode. Used only to surface the explicit
+   * no-formation status on the map when that statement is present. */
+  outlookText?: string;
   /** Every non-selected manifest storm (B2, final review) — drawn as a cone
    *  in the same styling as the selected storm's, plus a small monospace
    *  name label at its current position. */
   otherStorms: OtherStorm[];
+  discussion: TextProduct | null;
+  discussionOpen: boolean;
+  onDiscussionOpenChange: (open: boolean) => void;
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+const WIND_THRESHOLDS: WindThreshold[] = [39, 58, 74];
+
+async function geoJsonFetcher(url: string): Promise<GeoJSON.FeatureCollection> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch wind probability: ${response.status}`);
+  return response.json() as Promise<GeoJSON.FeatureCollection>;
+}
 
 function modelColor(props: GeoJSON.GeoJsonProperties): string {
   // Every GEFS/ECMWF ensemble member shares one flat, faint color by design
@@ -121,14 +152,37 @@ export default function StormMap({
   geo,
   mode,
   visibleModels,
+  onVisibleModelsChange,
+  modelCycleLabel,
   layers,
   onLayersToggle,
+  windThreshold,
+  onWindThresholdChange,
   hasGraphs,
+  outlookText,
   otherStorms,
+  discussion,
+  discussionOpen,
+  onDiscussionOpenChange,
 }: StormMapProps) {
+  const { data: windField, error: windFieldError } = useSWR<GeoJSON.FeatureCollection>(
+    layers.windField ? geo.windFieldUrl ?? null : null,
+    geoJsonFetcher
+  );
+  const selectedWindProbUrl = geo.windProbUrls[windThreshold] ?? null;
+  const { data: windProb, error: windProbError } = useSWR<GeoJSON.FeatureCollection>(
+    layers.windProb ? selectedWindProbUrl : null,
+    geoJsonFetcher
+  );
+  const availableWindThresholds = WIND_THRESHOLDS.filter((threshold) => Boolean(geo.windProbUrls[threshold]));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const noFormationExpected =
+    mode === "quiet" &&
+    outlookText?.toLowerCase().includes(
+      "tropical cyclone formation is not expected during the next 7 days"
+    );
 
   const graticuleMarkersRef = useRef<Marker[]>([]);
   const trackMarkersRef = useRef<Marker[]>([]);
@@ -231,14 +285,59 @@ export default function StormMap({
 
     clearMarkers(trackMarkersRef.current);
     const points = (geo.track?.features ?? []).filter((f) => f.geometry.type === "Point");
-    trackMarkersRef.current = points.map((f) => {
+    const markers: Marker[] = [];
+    for (const f of points) {
       const [lon, lat] = (f.geometry as GeoJSON.Point).coordinates;
+      const tau = Number(f.properties?.TAU ?? f.properties?.tauH ?? f.properties?.tau);
+      const isCurrent = tau === 0;
+      if (isCurrent && !layers.satellite && !layers.windField) {
+        const icon = document.createElement("div");
+        const symbol = stormSymbolKind(f.properties);
+        icon.className = `gw-current-storm-icon gw-storm-symbol-${symbol}`;
+        icon.setAttribute("aria-label", `${trackPointLabel(f.properties)} current position`);
+        icon.setAttribute("role", "img");
+        markers.push(
+          new Marker({ element: icon, anchor: "center" }).setLngLat([lon, lat]).addTo(map)
+        );
+      }
       const el = document.createElement("div");
       el.className = "gw-map-label gw-track-label";
       el.textContent = trackPointLabel(f.properties);
-      return new Marker({ element: el, anchor: "left", offset: [10, -10] }).setLngLat([lon, lat]).addTo(map);
+      markers.push(
+        new Marker({
+          element: el,
+          anchor: "left",
+          offset: isCurrent ? [20, -13] : [10, -10],
+        }).setLngLat([lon, lat]).addTo(map)
+      );
+    }
+    trackMarkersRef.current = markers;
+  }, [geo.track, layers.satellite, layers.windField, loaded]);
+
+  // --- observed storm history, kept separate from the official forecast ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const src = map.getSource(SOURCE_IDS.history) as GeoJSONSource | undefined;
+    src?.setData(geo.history ?? EMPTY_FC);
+  }, [geo.history, loaded]);
+
+  // --- archived, time-matched GOES image reprojected to Web Mercator ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded || !geo.satellite) return;
+    const [[west, south], [east, north]] = geo.satellite.bounds;
+    const src = map.getSource(SOURCE_IDS.satellite) as ImageSource | undefined;
+    src?.updateImage({
+      url: geo.satellite.url,
+      coordinates: [
+        [west, north],
+        [east, north],
+        [east, south],
+        [west, south],
+      ],
     });
-  }, [geo.track, loaded]);
+  }, [geo.satellite, loaded]);
 
   // --- watch/warning lines (fixed colors, independent of mode) ---
   useEffect(() => {
@@ -248,13 +347,21 @@ export default function StormMap({
     src?.setData(withColor(geo.wwlines, (props) => wwColor(props?.TCWW as string | undefined)));
   }, [geo.wwlines, loaded]);
 
+  // --- current analyzed wind field (NHC initial 34/50/64 kt radii) ---
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const src = map.getSource(SOURCE_IDS.windField) as GeoJSONSource | undefined;
+    src?.setData(windField ?? { type: "FeatureCollection", features: [] });
+  }, [windField, loaded]);
+
   // --- wind-probability shaded field (Round 2, v2 addendum) ---
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
     const src = map.getSource(SOURCE_IDS.windProb) as GeoJSONSource | undefined;
-    src?.setData(withColor(geo.windProb, (props) => windProbColor(props?.PERCENTAGE as string | undefined)));
-  }, [geo.windProb, loaded]);
+    src?.setData(withColor(windProb, (props) => windProbColor(props?.PERCENTAGE as string | undefined)));
+  }, [windProb, loaded]);
 
   // --- outlook genesis areas (mode-aware fill/line color + probability labels) ---
   useEffect(() => {
@@ -313,6 +420,25 @@ export default function StormMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
+    const visibility = layers.history && geo.history ? "visible" : "none";
+    map.setLayoutProperty(LAYER_IDS.historyLineCasing, "visibility", visibility);
+    map.setLayoutProperty(LAYER_IDS.historyLine, "visibility", visibility);
+    map.setLayoutProperty(LAYER_IDS.historyPoints, "visibility", visibility);
+  }, [geo.history, layers.history, loaded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    map.setLayoutProperty(
+      LAYER_IDS.satellite,
+      "visibility",
+      layers.satellite && geo.satellite ? "visible" : "none"
+    );
+  }, [geo.satellite, layers.satellite, loaded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
     const modelsVis = layers.models ? "visible" : "none";
     map.setLayoutProperty(LAYER_IDS.modelsEnsemble, "visibility", modelsVis);
     map.setLayoutProperty(LAYER_IDS.modelsSolid, "visibility", modelsVis);
@@ -328,6 +454,13 @@ export default function StormMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
+    const windFieldVis = layers.windField ? "visible" : "none";
+    map.setLayoutProperty(LAYER_IDS.windFieldFill, "visibility", windFieldVis);
+  }, [layers.windField, loaded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
     const windProbVis = layers.windProb ? "visible" : "none";
     map.setLayoutProperty(LAYER_IDS.windProbFill, "visibility", windProbVis);
     map.setLayoutProperty(LAYER_IDS.windProbLine, "visibility", windProbVis);
@@ -337,13 +470,52 @@ export default function StormMap({
     <div className="gw-map-frame">
       <div ref={containerRef} className="gw-map" />
       <CompassRose />
+      {noFormationExpected && (
+        <div className="quiet-map-status" role="status">
+          <small>Seven-day outlook</small>
+          <b>No tropical cyclone formation expected</b>
+          <span>The National Hurricane Center does not expect tropical cyclone development during the next seven days.</span>
+        </div>
+      )}
+      {discussionOpen && discussion && (
+        <ForecastDiscussion discussion={discussion} onClose={() => onDiscussionOpenChange(false)} />
+      )}
       <div className="map-attribution">{ESRI_ATTRIBUTION}</div>
-      <LayersControl
-        layers={layers}
-        onToggle={onLayersToggle}
-        hasWindProb={(geo.windProb?.features.length ?? 0) > 0}
-        hasGraphs={hasGraphs}
-      />
+      {layers.satellite && geo.satellite && (
+        <a
+          className="satellite-attribution"
+          href={geo.satellite.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          GOES-16 · {cdtDateTime(geo.satellite.issued)} · {geo.satellite.sourceLabel}
+        </a>
+      )}
+      <div className="map-controls">
+        <LayersControl
+          layers={layers}
+          onToggle={onLayersToggle}
+          hasGraphs={hasGraphs}
+          hasHistory={Boolean(geo.history)}
+          hasSatellite={Boolean(geo.satellite)}
+          satelliteLabel={geo.satellite ? cdtDateTime(geo.satellite.issued) : undefined}
+          hasWindField={Boolean(geo.windFieldUrl)}
+          windFieldLoading={layers.windField && Boolean(geo.windFieldUrl) && !windField && !windFieldError}
+          windFieldError={Boolean(windFieldError)}
+          hasDiscussion={Boolean(discussion)}
+          discussionOpen={discussionOpen}
+          onDiscussionToggle={() => onDiscussionOpenChange(!discussionOpen)}
+          availableWindThresholds={availableWindThresholds}
+          windThreshold={windThreshold}
+          onWindThresholdChange={onWindThresholdChange}
+          visibleModels={visibleModels}
+          onVisibleModelsChange={onVisibleModelsChange}
+          models={mode === "active" ? geo.models : null}
+          cycleLabel={modelCycleLabel}
+          windProbLoading={layers.windProb && Boolean(selectedWindProbUrl) && !windProb && !windProbError}
+          windProbError={Boolean(windProbError)}
+        />
+      </div>
     </div>
   );
 }

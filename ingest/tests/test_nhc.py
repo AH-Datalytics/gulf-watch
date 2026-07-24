@@ -88,7 +88,12 @@ def test_bertha_gis_urls_all_explicit_from_json(bertha):
     # All three GIS product fields point at the same "5day" package zip for
     # this advisory -- that's expected NHC behavior, not a bug.
     expected = "https://www.nhc.noaa.gov/gis/forecast/archive/al022026_5day_014A.zip"
-    assert bertha.gis_urls == {"cone": expected, "track": expected, "wwlines": expected}
+    assert bertha.gis_urls == {
+        "cone": expected,
+        "track": expected,
+        "wwlines": expected,
+        "windfield": "https://www.nhc.noaa.gov/gis/forecast/archive/al022026_fcst_014A.zip",
+    }
 
 
 def test_fausto_wwlines_falls_back_to_latest_pattern(fausto):
@@ -106,6 +111,7 @@ def test_fausto_wwlines_falls_back_to_latest_pattern(fausto):
         fausto.gis_urls["track"]
         == "https://www.nhc.noaa.gov/gis/forecast/archive/ep062026_5day_016.zip"
     )
+    assert fausto.gis_urls["windfield"] == "https://www.nhc.noaa.gov/gis/forecast/archive/ep062026_fcst_016.zip"
 
 
 def test_fausto_not_in_gulf_box(fausto):

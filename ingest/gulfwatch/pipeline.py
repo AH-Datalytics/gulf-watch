@@ -113,12 +113,17 @@ def _is_track(name: str) -> bool:
     return ("lin" in name or "pts" in name) and "ww" not in name
 
 
+def _is_windfield(name: str) -> bool:
+    return "initialradii" in name.lower()
+
+
 def _storm_paths(stormid: str) -> dict:
     base = f"storms/{stormid}"
     return {
         "cone": f"{base}/cone.geojson",
         "track": f"{base}/track.geojson",
         "wwlines": f"{base}/wwlines.geojson",
+        "windfield": f"{base}/windfield.geojson",
         "models": f"{base}/models.geojson",
         "intensity": f"{base}/intensity.json",
         "text": f"{base}/text.json",
@@ -126,7 +131,12 @@ def _storm_paths(stormid: str) -> dict:
     }
 
 
-_GIS_PREDICATES = {"cone": _is_cone, "track": _is_track, "wwlines": _is_wwlines}
+_GIS_PREDICATES = {
+    "cone": _is_cone,
+    "track": _is_track,
+    "wwlines": _is_wwlines,
+    "windfield": _is_windfield,
+}
 
 
 def _process_gis(storm, paths, fetch, store, errors):
@@ -147,7 +157,12 @@ def _process_gis(storm, paths, fetch, store, errors):
     track product's own fetch/convert/upload failed), for the
     storm_in_gulf check.
     """
-    unique_urls = {storm.gis_urls[key] for key in _GIS_PREDICATES}
+    active_products = {
+        key: predicate
+        for key, predicate in _GIS_PREDICATES.items()
+        if storm.gis_urls.get(key)
+    }
+    unique_urls = {storm.gis_urls[key] for key in active_products}
     fetched: dict[str, dict] = {}
     fetch_errors: dict[str, Exception] = {}
     for url in unique_urls:
@@ -158,7 +173,7 @@ def _process_gis(storm, paths, fetch, store, errors):
             fetch_errors[url] = exc
 
     track_fc = None
-    for key, predicate in _GIS_PREDICATES.items():
+    for key, predicate in active_products.items():
         url = storm.gis_urls[key]
         if url in fetch_errors:
             errors.append(
@@ -339,6 +354,7 @@ def _process_storm(storm, prev_storm_state, fetch, store, errors):
             "intensity": paths["intensity"],
             "text": paths["text"],
             "probs": paths["probs"],
+            **({"windfield": paths["windfield"]} if storm.gis_urls.get("windfield") else {}),
         },
     }
     next_state = {"advisory": storm.advisory_num, "cycle": new_cycle}

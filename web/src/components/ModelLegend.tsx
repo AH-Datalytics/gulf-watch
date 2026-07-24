@@ -1,173 +1,135 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment } from "react";
 import { modelRows } from "@/lib/mapStyle";
 import { DEFAULT_MODEL_COLOR, ENSEMBLE_COLOR, MODEL_COLORS } from "@/lib/modelColors";
 
 export interface ModelLegendProps {
   visibleModels: Set<string>;
   onChange: (next: Set<string>) => void;
-  /** e.g. "12Z" — shown in the kicker as "Guidance — 12Z Cycle". */
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
   cycleLabel?: string;
-  /** models.geojson for the selected storm. Round 2 (v2 addendum, full
-   *  spaghetti): the legend is now entirely data-driven from this — the
-   *  historical Ida sample carries a totally different model roster
-   *  (CMC, NAVGEM, HMON, HWRF, 60+ GEFS/ECMWF ensemble members...) from a
-   *  live storm's, so a fixed hardcoded model list can't work anymore. */
   models?: GeoJSON.FeatureCollection | null;
 }
 
-/**
- * Forecast-model filter — a compact dropdown trigger (closed by default,
- * showing a "N of M" selected-count summary) that opens a checkbox panel on
- * click, closing on an outside click or Escape. Redesigned mid-build per
- * direct user feedback ("the model selection should be a dropdown filter,
- * baseball savant style") — the model roster can run to ~18 rows (13
- * deterministic + 4 consensus + 1 ensemble group for the Ida sample), which
- * dominated the rail as an always-open block; collapsed by default reads
- * like a normal stats-site filter control instead.
- *
- * Rows are grouped by each model's resolved `group` (see mapStyle.ts's
- * resolveGroup): "Deterministic" and "Consensus" each get one row per
- * individual model code (checkbox per model); "Ensemble" collapses every
- * GEFS/ECMWF member into a single group checkbox — there can be 60+ of
- * them, with no individual per-member toggle in the UI, matching how they
- * render on the map (one shared faint color/thin line, not a distinct
- * color per member).
- */
-export function ModelLegend({ visibleModels, onChange, cycleLabel, models }: ModelLegendProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
+/** Forecast-track choices embedded in Map options. Primary choices use
+ * plain language; technical model codes stay behind Advanced. */
+export function ModelLegend({
+  visibleModels,
+  onChange,
+  enabled,
+  onEnabledChange,
+  cycleLabel,
+  models,
+}: ModelLegendProps) {
   const rows = modelRows(models);
-  const deterministic = rows.filter((r) => r.group === "deterministic");
-  const consensus = rows.filter((r) => r.group === "consensus");
-  const ensemble = rows.filter((r) => r.group === "ensemble");
-  const ensembleCodes = ensemble.map((r) => r.code);
-  const allCodes = rows.map((r) => r.code);
-  const selectedCount = allCodes.filter((c) => visibleModels.has(c)).length;
+  const deterministic = rows.filter((row) => row.group === "deterministic");
+  const ensemble = rows.filter((row) => row.group === "ensemble");
+  const ensembleCodes = ensemble.map((row) => row.code);
+  const gefsCodes = ensemble
+    .filter((row) => row.label.startsWith("GEFS"))
+    .map((row) => row.code);
+  const ecmwfCodes = ensemble
+    .filter((row) => row.label.startsWith("ECMWF"))
+    .map((row) => row.code);
+  const namedEnsembleCodes = new Set([...gefsCodes, ...ecmwfCodes]);
+  const otherEnsembleCodes = ensembleCodes.filter((code) => !namedEnsembleCodes.has(code));
+  // Consensus aids usually sit close to the official forecast and add clutter
+  // without presenting a meaningfully distinct scenario to general users.
+  const allCodes = [...deterministic, ...ensemble].map((row) => row.code);
+  const selectedCount = allCodes.filter((code) => visibleModels.has(code)).length;
+  const allSelected = enabled && allCodes.length > 0 && selectedCount === allCodes.length;
 
-  // Close on an outside click or Escape — standard dropdown-filter behavior
-  // (Baseball Savant-style: click the trigger to open, click away to close,
-  // no separate "Apply"/"Done" button needed since each checkbox already
-  // applies immediately via onChange).
-  useEffect(() => {
-    if (!open) return;
-    function handlePointerDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
+  function choose(codes: string[]) {
+    onChange(new Set(codes));
+    onEnabledChange(codes.length > 0);
+  }
 
   function toggle(code: string) {
-    const next = new Set(visibleModels);
+    const next = new Set([...visibleModels].filter((selected) => allCodes.includes(selected)));
     if (next.has(code)) next.delete(code);
     else next.add(code);
     onChange(next);
+    onEnabledChange(next.size > 0);
   }
 
-  function toggleEnsemble() {
-    const allOn = ensembleCodes.length > 0 && ensembleCodes.every((c) => visibleModels.has(c));
-    const next = new Set(visibleModels);
-    for (const c of ensembleCodes) {
-      if (allOn) next.delete(c);
-      else next.add(c);
+  function toggleModelSet(codes: string[]) {
+    const allOn = codes.length > 0 && codes.every((code) => visibleModels.has(code));
+    const next = new Set([...visibleModels].filter((selected) => allCodes.includes(selected)));
+    for (const code of codes) {
+      if (allOn) next.delete(code);
+      else next.add(code);
     }
     onChange(next);
+    onEnabledChange(next.size > 0);
   }
 
   return (
-    <div className="model-select" ref={rootRef}>
-      <div className="kicker">
-        Forecast models
-        {cycleLabel && <span className="issued"> · {cycleLabel} cycle</span>}
+    <section className="guidance-section" aria-labelledby="forecast-track-heading">
+      <div className="map-options-section-title" id="forecast-track-heading">Forecast track</div>
+      <p className="map-options-help">The official NHC track is always visible. Model tracks show possible scenarios.</p>
+      <div className="guidance-choice-list">
+        <button type="button" className={!enabled ? "selected" : ""} onClick={() => choose([])}>
+          <span><b>Official forecast</b></span>
+          <span aria-hidden="true">{!enabled ? "✓" : ""}</span>
+        </button>
+        <button type="button" className={allSelected ? "selected" : ""} onClick={() => choose(allCodes)}>
+          <span><b>Forecast model tracks</b><small>Show other projected paths</small></span>
+          <span aria-hidden="true">{allSelected ? "✓" : ""}</span>
+        </button>
       </div>
-      <button
-        type="button"
-        className="model-select-trigger"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <span>
-          {selectedCount} of {allCodes.length} shown
-        </span>
-        <span className="chev" aria-hidden="true">
-          {open ? "▲" : "▼"}
-        </span>
-      </button>
-      {open && (
-        <div className="model-select-panel">
-          <div className="models">
-            {deterministic.length > 0 && (
-              <Fragment>
-                <div className="grp">Deterministic</div>
-                {deterministic.map((model) => (
-                  <label className="m" key={model.code}>
-                    <input
-                      type="checkbox"
-                      checked={visibleModels.has(model.code)}
-                      onChange={() => toggle(model.code)}
-                    />
-                    <span
-                      className={`sw${model.kind === "ai" ? " dash" : ""}`}
-                      style={{ borderColor: MODEL_COLORS[model.code] ?? DEFAULT_MODEL_COLOR }}
-                    />
-                    {model.label}
-                  </label>
-                ))}
-              </Fragment>
-            )}
-            {consensus.length > 0 && (
-              <Fragment>
-                <div className="grp">Consensus</div>
-                {consensus.map((model) => (
-                  <label className="m" key={model.code}>
-                    <input
-                      type="checkbox"
-                      checked={visibleModels.has(model.code)}
-                      onChange={() => toggle(model.code)}
-                    />
-                    <span className="sw" style={{ borderColor: MODEL_COLORS[model.code] ?? DEFAULT_MODEL_COLOR }} />
-                    {model.label}
-                  </label>
-                ))}
-              </Fragment>
-            )}
-            {ensemble.length > 0 && (
-              <Fragment>
-                <div className="grp">Ensemble</div>
-                <label className="m">
-                  <input
-                    type="checkbox"
-                    checked={ensembleCodes.every((c) => visibleModels.has(c))}
-                    onChange={toggleEnsemble}
-                  />
-                  <span className="sw" style={{ borderColor: ENSEMBLE_COLOR }} />
-                  Ensemble members ({ensemble.length})
-                </label>
-              </Fragment>
-            )}
-          </div>
-          <div className="legend-actions">
-            {consensus.length > 0 && (
-              <button type="button" onClick={() => onChange(new Set(consensus.map((r) => r.code)))}>
-                Consensus only
-              </button>
-            )}
-            <button type="button" onClick={() => onChange(new Set(allCodes))}>
-              All models
-            </button>
-          </div>
+      <details className="advanced-models">
+        <summary>Choose individual models</summary>
+        {cycleLabel && <div className="advanced-cycle">Guidance cycle: {cycleLabel}</div>}
+        <div className="legend-actions" aria-label="Model selection actions">
+          <button type="button" onClick={() => choose(allCodes)} disabled={allSelected}>Select all</button>
+          <button type="button" onClick={() => choose([])} disabled={selectedCount === 0}>Clear all</button>
         </div>
-      )}
-    </div>
+        <div className="models">
+          {deterministic.length > 0 && (
+            <Fragment>
+              <div className="grp">Individual models</div>
+              {deterministic.map((model) => (
+                <label className="m" key={model.code}>
+                  <input type="checkbox" checked={visibleModels.has(model.code)} onChange={() => toggle(model.code)} />
+                  <span className={`sw${model.kind === "ai" ? " dash" : ""}`} style={{ borderColor: MODEL_COLORS[model.code] ?? DEFAULT_MODEL_COLOR }} />
+                  {model.label}
+                </label>
+              ))}
+            </Fragment>
+          )}
+          {ensemble.length > 0 && (
+            <Fragment>
+              <div className="grp">Ensemble model tracks</div>
+              <div className="grp-note">
+                Each system is run with slightly different initial conditions. The spread of tracks shows forecast uncertainty.
+              </div>
+              {gefsCodes.length > 0 && (
+                <label className="m">
+                  <input type="checkbox" checked={gefsCodes.every((code) => visibleModels.has(code))} onChange={() => toggleModelSet(gefsCodes)} />
+                  <span className="sw" style={{ borderColor: ENSEMBLE_COLOR }} />
+                  GEFS ensemble ({gefsCodes.length} members)
+                </label>
+              )}
+              {ecmwfCodes.length > 0 && (
+                <label className="m">
+                  <input type="checkbox" checked={ecmwfCodes.every((code) => visibleModels.has(code))} onChange={() => toggleModelSet(ecmwfCodes)} />
+                  <span className="sw" style={{ borderColor: ENSEMBLE_COLOR }} />
+                  ECMWF ensemble ({ecmwfCodes.length} members)
+                </label>
+              )}
+              {otherEnsembleCodes.length > 0 && (
+                <label className="m">
+                  <input type="checkbox" checked={otherEnsembleCodes.every((code) => visibleModels.has(code))} onChange={() => toggleModelSet(otherEnsembleCodes)} />
+                  <span className="sw" style={{ borderColor: ENSEMBLE_COLOR }} />
+                  Other ensemble members ({otherEnsembleCodes.length})
+                </label>
+              )}
+            </Fragment>
+          )}
+        </div>
+      </details>
+    </section>
   );
 }

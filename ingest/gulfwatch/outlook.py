@@ -33,8 +33,9 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from datetime import timezone
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from zoneinfo import ZoneInfo
 
 from gulfwatch import shp
 
@@ -53,6 +54,10 @@ _ATLANTIC_BASIN = "atlantic"
 _PROB_DIGITS_RE = re.compile(r"(\d+)")
 _BR_TAG_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
 _ANY_TAG_RE = re.compile(r"<[^>]+>")
+_OFFICIAL_ISSUE_RE = re.compile(
+    r"(?m)^(\d{3,4})\s+(AM|PM)\s+(EDT|EST)\s+"
+    r"([A-Z][a-z]{2})\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})\s*$"
+)
 
 
 def normalize_risk(prob_pct: int) -> str:
@@ -124,6 +129,25 @@ def _iso_z(dt) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _official_issue_time(text: str) -> str | None:
+    """Return the bulletin's official issue time, when present.
+
+    NHC's RSS ``pubDate`` is the feed publication timestamp and can differ
+    from the issuance printed in the product body. The public-facing label
+    should use the latter (for example, ``200 PM EDT Fri Jul 24 2026``).
+    """
+    match = _OFFICIAL_ISSUE_RE.search(text)
+    if not match:
+        return None
+
+    hhmm, am_pm, _tz_abbr, weekday, month, day, year = match.groups()
+    local = datetime.strptime(
+        f"{hhmm} {am_pm} {weekday} {month} {day} {year}",
+        "%I%M %p %a %b %d %Y",
+    ).replace(tzinfo=ZoneInfo("America/New_York"))
+    return _iso_z(local)
+
+
 def parse_outlook_text(rss_xml: str) -> dict:
     """Parse the Atlantic TWO RSS feed (index-at.xml) into
     {"issued": <ISO8601 Z>, "text": <plain text, HTML-free>}.
@@ -152,7 +176,7 @@ def parse_outlook_text(rss_xml: str) -> dict:
     text = text.strip()
 
     raw_pub_date = two_item.findtext("pubDate") or ""
-    issued = _iso_z(parsedate_to_datetime(raw_pub_date))
+    issued = _official_issue_time(text) or _iso_z(parsedate_to_datetime(raw_pub_date))
 
     return {"issued": issued, "text": text}
 

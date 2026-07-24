@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   categoryFor,
   cdtTickLabel,
+  cdtDateTime,
   cdtTime,
   countdown,
   formatCycle,
@@ -65,6 +66,12 @@ describe("cdtTime", () => {
   it("renders noon UTC correctly", () => {
     // 2026-07-22T17:00:00Z is noon CDT.
     expect(cdtTime("2026-07-22T17:00:00Z")).toBe("12:00 PM CDT");
+  });
+});
+
+describe("cdtDateTime", () => {
+  it("adds the Central calendar date for historical advisory context", () => {
+    expect(cdtDateTime("2021-08-27T21:00:00Z")).toBe("Aug 27, 2021 at 4:00 PM CDT");
   });
 });
 
@@ -137,5 +144,9 @@ describe("nextOutlookIssueTime", () => {
   it("wraps to the next day's 1 AM after the 7 PM slot", () => {
     // 2026-07-23T00:00:00Z is 7:00 PM CDT (July 22).
     expect(nextOutlookIssueTime("2026-07-23T00:00:00Z")).toBe("1:00 AM CDT");
+  });
+
+  it("does not preserve minutes from an off-schedule source timestamp", () => {
+    expect(nextOutlookIssueTime("2026-07-22T17:13:24Z")).toBe("1:00 PM CDT");
   });
 });

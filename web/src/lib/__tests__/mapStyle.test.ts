@@ -10,12 +10,14 @@ import {
   outlookColor,
   polygonLabelPoint,
   resolveGroup,
+  stormSymbolKind,
   trackPointLabel,
   WIND_PROB_BANDS,
   windProbColor,
   withColor,
   WW_COLORS,
   wwColor,
+  wwKind,
   type ModeColors,
 } from "../mapStyle";
 
@@ -89,6 +91,16 @@ describe("wwColor", () => {
   });
 });
 
+describe("wwKind", () => {
+  it("returns semantic legend categories for each NHC code", () => {
+    expect(wwKind("HWR")).toBe("hurricaneWarning");
+    expect(wwKind("HWA")).toBe("hurricaneWatch");
+    expect(wwKind("TWR")).toBe("tsWarning");
+    expect(wwKind("TWA")).toBe("tsWatch");
+    expect(wwKind("SS")).toBe("surge");
+  });
+});
+
 describe("outlookColor", () => {
   it("uses --outlook-low for low risk, in both modes", () => {
     expect(outlookColor("low", QUIET_COLORS)).toBe(QUIET_COLORS.outlookLow);
@@ -125,6 +137,15 @@ describe("trackPointLabel", () => {
       "CAT 2 · 1:00 PM Wed"
     );
   });
+
+  it("replaces STORMTYPE=MH with the predicted category", () => {
+    expect(trackPointLabel({ STORMTYPE: "MH", MAXWIND: 105, DATELBL: "2:00 PM Sat" })).toBe(
+      "CAT 3 · 2:00 PM Sat"
+    );
+    expect(trackPointLabel({ STORMTYPE: "MH", MAXWIND: 115, DATELBL: "2:00 AM Sun" })).toBe(
+      "CAT 4 · 2:00 AM Sun"
+    );
+  });
   it("shows the real STORMTYPE as-is for non-HU classifications", () => {
     expect(trackPointLabel({ STORMTYPE: "TS", DATELBL: "4:00 AM Thu" })).toBe("TS · 4:00 AM Thu");
     expect(trackPointLabel({ STORMTYPE: "TD", DATELBL: "1:00 AM Fri" })).toBe("TD · 1:00 AM Fri");
@@ -141,6 +162,24 @@ describe("outlookAreaLabel", () => {
   });
   it("returns empty string when PROB7DAY is missing", () => {
     expect(outlookAreaLabel({})).toBe("");
+  });
+});
+
+describe("stormSymbolKind", () => {
+  it("uses a circle for tropical depressions", () => {
+    expect(stormSymbolKind({ STORMTYPE: "TD" })).toBe("td");
+    expect(stormSymbolKind({ category: "STD" })).toBe("td");
+  });
+
+  it("uses the hollow cyclone symbol for tropical storms", () => {
+    expect(stormSymbolKind({ STORMTYPE: "TS" })).toBe("ts");
+    expect(stormSymbolKind({ category: "SS" })).toBe("ts");
+  });
+
+  it("uses the filled-center cyclone symbol for hurricanes", () => {
+    expect(stormSymbolKind({ STORMTYPE: "HU" })).toBe("hu");
+    expect(stormSymbolKind({ STORMTYPE: "MH" })).toBe("hu");
+    expect(stormSymbolKind({ category: "4" })).toBe("hu");
   });
 });
 

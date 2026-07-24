@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   CartesianGrid,
   Line,
@@ -51,8 +51,8 @@ const CATEGORY_BANDS = [
   { lower: CATEGORY_THRESHOLDS_MPH.C1, upper: CATEGORY_THRESHOLDS_MPH.C2, label: "CAT 1", color: "var(--band-1)" },
   { lower: CATEGORY_THRESHOLDS_MPH.C2, upper: CATEGORY_THRESHOLDS_MPH.C3, label: "CAT 2", color: "var(--band-2)" },
   { lower: CATEGORY_THRESHOLDS_MPH.C3, upper: CATEGORY_THRESHOLDS_MPH.C4, label: "CAT 3", color: "var(--band-3)" },
-  { lower: CATEGORY_THRESHOLDS_MPH.C4, upper: CATEGORY_THRESHOLDS_MPH.C5, label: "CAT 4", color: "var(--band-3)" },
-  { lower: CATEGORY_THRESHOLDS_MPH.C5, upper: Infinity, label: "CAT 5", color: "var(--band-3)" },
+  { lower: CATEGORY_THRESHOLDS_MPH.C4, upper: CATEGORY_THRESHOLDS_MPH.C5, label: "CAT 4", color: "var(--band-4)" },
+  { lower: CATEGORY_THRESHOLDS_MPH.C5, upper: Infinity, label: "CAT 5", color: "var(--band-5)" },
 ] as const;
 
 function addHoursIso(iso: string, hours: number): string {
@@ -94,6 +94,16 @@ function modelColor(model: string): string {
   return MODEL_COLORS[model] ?? DEFAULT_MODEL_COLOR;
 }
 
+function categoryLabel(mph: number): string {
+  if (mph >= CATEGORY_THRESHOLDS_MPH.C5) return "Category 5";
+  if (mph >= CATEGORY_THRESHOLDS_MPH.C4) return "Category 4";
+  if (mph >= CATEGORY_THRESHOLDS_MPH.C3) return "Category 3";
+  if (mph >= CATEGORY_THRESHOLDS_MPH.C2) return "Category 2";
+  if (mph >= CATEGORY_THRESHOLDS_MPH.C1) return "Category 1";
+  if (mph >= CATEGORY_THRESHOLDS_MPH.TS) return "Tropical storm";
+  return "Below tropical-storm force";
+}
+
 interface IntensityTooltipProps extends TooltipContentProps {
   advisoryTime: string;
 }
@@ -126,14 +136,6 @@ function IntensityTooltip({ active, payload, label, advisoryTime }: IntensityToo
  * .ipanel block.
  */
 export function IntensityPanel({ intensity, storm, track, visibleModels, onClose }: IntensityPanelProps) {
-  // Round 2 (v2 addendum): the panel is now a pop-out card that floats over
-  // the bottom of the map (not an in-flow sibling that permanently shrinks
-  // the map's visible area — see globals.css's .ipanel comment) and can be
-  // collapsed to just its header bar without fully closing it, in addition
-  // to the Layers control's "Graphs" checkbox (which unmounts it entirely
-  // via onClose).
-  const [collapsed, setCollapsed] = useState(false);
-
   const displayedSeries = useMemo(() => {
     const filtered = intensity.series.filter(
       (s) => ALWAYS_ON_MODELS.has(s.model) || visibleModels.has(s.model)
@@ -148,6 +150,10 @@ export function IntensityPanel({ intensity, storm, track, visibleModels, onClose
   const ticks = useMemo(() => buildTicks(maxTauH), [maxTauH]);
   const yTicks = useMemo(() => buildYTicks(yMax), [yMax]);
   const landfall = useMemo(() => landfallTau(track, intensity), [track, intensity]);
+  const officialPeak = useMemo(() => {
+    const official = intensity.series.find((series) => series.model === "OFCL");
+    return official ? Math.max(...official.points.map((point) => point.mph)) : null;
+  }, [intensity.series]);
 
   const chartData = useMemo(() => {
     const taus = Array.from(new Set(displayedSeries.flatMap((s) => s.points.map((p) => p.tauH)))).sort(
@@ -168,28 +174,25 @@ export function IntensityPanel({ intensity, storm, track, visibleModels, onClose
   );
 
   return (
-    <div className={`ipanel${collapsed ? " collapsed" : ""}`}>
+    <div className="ipanel">
       <div className="head">
         <div>
-          <div className="t">Intensity guidance — max sustained winds, next {maxTauH}h</div>
-          {!collapsed && <div className="s">Official NHC forecast in navy · AI guidance dashed</div>}
+          <div className="t">Intensity forecast</div>
+          <div className="s">Maximum sustained winds · next {maxTauH} hours</div>
         </div>
+        {officialPeak != null && (
+          <div className="ipanel-peak">
+            <span>Official peak</span>
+            <b>{Math.round(officialPeak)} mph</b>
+            <small>{categoryLabel(officialPeak)}</small>
+          </div>
+        )}
         <div className="ipanel-controls">
-          <button
-            type="button"
-            className="ipanel-btn"
-            onClick={() => setCollapsed((v) => !v)}
-            aria-expanded={!collapsed}
-            title={collapsed ? "Expand" : "Collapse"}
-          >
-            {collapsed ? "▲" : "▼"}
-          </button>
-          <button type="button" className="ipanel-btn" onClick={onClose} title="Close">
+          <button type="button" className="ipanel-btn" onClick={onClose} title="Close intensity">
             ×
           </button>
         </div>
       </div>
-      {!collapsed && (
       <div className="ipanel-chart">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData} margin={{ top: 20, right: 46, bottom: 4, left: 4 }}>
@@ -228,13 +231,13 @@ export function IntensityPanel({ intensity, storm, track, visibleModels, onClose
               y1={b.lower}
               y2={Math.min(b.upper, yMax)}
               fill={b.color}
-              fillOpacity={1}
+              fillOpacity={0.14}
               stroke="none"
               ifOverflow="visible"
               label={{
                 value: b.label,
                 position: "insideTopRight",
-                fill: "var(--ink-dim)",
+                fill: "#52676c",
                 fontSize: 11,
               }}
             />
@@ -285,7 +288,14 @@ export function IntensityPanel({ intensity, storm, track, visibleModels, onClose
         </LineChart>
       </ResponsiveContainer>
       </div>
-      )}
+      <div className="ipanel-legend" aria-label="Visible intensity guidance">
+        {displayedSeries.map((series) => (
+          <span key={series.model} className={series.model === "OFCL" ? "official" : ""}>
+            <i style={{ background: modelColor(series.model) }} />
+            {series.model === "OFCL" ? "Official NHC" : series.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

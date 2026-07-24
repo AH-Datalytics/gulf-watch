@@ -1,11 +1,22 @@
 "use client";
 
 import useSWR from "swr";
-import { useMemo, useSyncExternalStore } from "react";
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import type { ReactNode } from "react";
 import { BLOB_BASE, STALE_HOURS } from "./config";
+import type { WindThreshold } from "./layers";
 import type { Manifest, StormEntry, IntensitySeries, Mode, ProbsEntry, StormTextProducts } from "./types";
 
 const DEMO_BASE = "/demo";
+const LIVE_REFRESH_MS = 5 * 60 * 1000;
 
 // Design note: we read the `?demo=` flag via window.location.search rather
 // than next/navigation's useSearchParams. useSearchParams is a Client
@@ -45,8 +56,24 @@ function useDemoParam(): string | null {
   );
 }
 
+function useStormParam(): string | null {
+  return useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).get("storm"),
+    () => null
+  );
+}
+
+function useAdvisoryParam(): string | null {
+  return useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).get("advisory"),
+    () => null
+  );
+}
+
 const jsonFetcher = async <T,>(url: string): Promise<T> => {
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
   }
@@ -88,12 +115,14 @@ export function demoTag(demoParam: string | null): string | null {
   if (demoParam === null) return null;
   if (demoParam === "bertha") return "ARCHIVED DATA — TS BERTHA · ADV 016 · JUL 23 2026";
   if (demoParam === "quiet") return "SIMULATED STORM — DEMO DATA";
-  return "HISTORICAL SAMPLE — HURRICANE IDA · AUG 27 2021";
+  return "HISTORICAL SAMPLE — HURRICANE IDA · AUG 27–28 2021";
 }
 
 /** Strongest inGulfBox storm, else strongest storm overall, else null. */
-export function selectStorm(storms: StormEntry[]): StormEntry | null {
+export function selectStorm(storms: StormEntry[], selectedId?: string | null): StormEntry | null {
   if (storms.length === 0) return null;
+  const requested = selectedId ? storms.find((storm) => storm.id === selectedId) : undefined;
+  if (requested) return requested;
   const inGulf = storms.filter((s) => s.inGulfBox);
   const pool = inGulf.length > 0 ? inGulf : storms;
   return pool.reduce((strongest, s) =>
@@ -139,27 +168,44 @@ export interface OtherStorm {
 }
 
 export interface DashboardData {
+  status: "loading" | "ready" | "unavailable";
+  retry: () => void;
   manifest: Manifest | null;
   mode: Mode;
   demo: boolean;
+  demoParam: string | null;
+  dataIssues: { product: string; message: string }[];
   /** Map-corner tag text when `demo` is true (e.g. "SIMULATED STORM — DEMO DATA"
    *  or, for `?demo=bertha`, "ARCHIVED DATA — TS BERTHA · ADV 016 · JUL 23 2026");
    *  null otherwise. See {@link demoTag}. */
   demoTag: string | null;
+  storms: StormEntry[];
   storm: StormEntry | null;
+  advisories: StormEntry[];
+  advisoryIndex: number;
+  selectAdvisoryIndex: (index: number) => void;
   /** Every OTHER manifest storm (v1: "show all cones, detail for strongest
    *  Gulf threat") — see {@link otherStorms}. */
   otherStorms: OtherStorm[];
   geo: {
     cone?: GeoJSON.FeatureCollection;
     track?: GeoJSON.FeatureCollection;
+    history?: GeoJSON.FeatureCollection;
     wwlines?: GeoJSON.FeatureCollection;
     models?: GeoJSON.FeatureCollection;
     outlook?: GeoJSON.FeatureCollection;
+    windFieldUrl?: string;
     /** Real NHC wind-speed-probability shapefile (34kt threshold), when the
      *  selected storm's manifest entry carries `files.windprob` — see
      *  types.ts. undefined for storms without it (most, today). */
-    windProb?: GeoJSON.FeatureCollection;
+    windProbUrls: Partial<Record<WindThreshold, string>>;
+    satellite?: {
+      url: string;
+      issued: string;
+      sourceLabel: string;
+      sourceUrl: string;
+      bounds: [[number, number], [number, number]];
+    };
   };
   intensity: IntensitySeries | null;
   outlookText: { issued: string; text: string } | null;
@@ -173,17 +219,48 @@ export interface DashboardData {
   stale: boolean;
 }
 
-export function useDashboard(): DashboardData {
+function useDashboardSource(): DashboardData {
   const demoParam = useDemoParam();
+  const stormParam = useStormParam();
+  const advisoryParam = useAdvisoryParam();
+  const [advisoryOverride, setAdvisoryOverride] = useState<string | null>(null);
   const demo = demoParam !== null;
   const base = demo ? DEMO_BASE : BLOB_BASE;
+  const refreshOptions = { refreshInterval: demo ? 0 : LIVE_REFRESH_MS };
 
-  const { data: manifest } = useSWR<Manifest>(
+  const { data: manifest, error: manifestError, mutate: retryManifest } = useSWR<Manifest>(
     manifestUrl(demoParam),
-    jsonFetcher
+    jsonFetcher,
+    refreshOptions
   );
 
-  const storm = useMemo(() => selectStorm(manifest?.storms ?? []), [manifest]);
+  const baseStorm = useMemo(
+    () => selectStorm(manifest?.storms ?? [], stormParam),
+    [manifest, stormParam]
+  );
+  const storm = useMemo(
+    () => selectAdvisory(baseStorm, advisoryOverride ?? advisoryParam),
+    [advisoryOverride, advisoryParam, baseStorm]
+  );
+  const advisories = useMemo(
+    () => baseStorm?.advisories ?? (baseStorm ? [baseStorm] : []),
+    [baseStorm]
+  );
+  const advisoryIndex = Math.max(
+    0,
+    advisories.findIndex((frame) => frame.advisoryNum === storm?.advisoryNum)
+  );
+  const selectAdvisoryIndex = useCallback(
+    (index: number) => {
+      const frame = advisories[index];
+      if (!frame) return;
+      setAdvisoryOverride(frame.advisoryNum);
+      const url = new URL(window.location.href);
+      url.searchParams.set("advisory", frame.advisoryNum);
+      window.history.replaceState(window.history.state, "", url);
+    },
+    [advisories]
+  );
 
   // B2 (final review): every other manifest storm gets its own cone drawn on
   // the map (same styling as the selected storm's) plus a name label — the
@@ -204,7 +281,8 @@ export function useDashboard(): DashboardData {
   // hooks.
   const { data: otherCones } = useSWR<GeoJSON.FeatureCollection[]>(
     otherConeUrls.length > 0 ? otherConeUrls : null,
-    (urls: string[]) => Promise.all(urls.map((u) => jsonFetcher<GeoJSON.FeatureCollection>(u)))
+    (urls: string[]) => Promise.all(urls.map((u) => jsonFetcher<GeoJSON.FeatureCollection>(u))),
+    refreshOptions
   );
   const otherStormsWithCones = useMemo<OtherStorm[]>(
     () =>
@@ -220,58 +298,114 @@ export function useDashboard(): DashboardData {
 
   const coneUrl = storm ? `${base}/${storm.files.cone}` : null;
   const trackUrl = storm ? `${base}/${storm.files.track}` : null;
+  const historyUrl = storm?.files.history ? `${base}/${storm.files.history}` : null;
   const wwlinesUrl = storm ? `${base}/${storm.files.wwlines}` : null;
   const modelsUrl = storm ? `${base}/${storm.files.models}` : null;
   const intensityUrl = storm ? `${base}/${storm.files.intensity}` : null;
   const probsUrl = storm ? `${base}/${storm.files.probs}` : null;
   const textUrl = storm ? `${base}/${storm.files.text}` : null;
-  const windProbUrl = storm?.files.windprob ? `${base}/${storm.files.windprob}` : null;
+  const windProbUrls = useMemo<Partial<Record<WindThreshold, string>>>(() => {
+    if (!storm) return {};
+    return {
+      ...(storm.files.windprob ? { 39: `${base}/${storm.files.windprob}` } : {}),
+      ...(storm.files.windprob50 ? { 58: `${base}/${storm.files.windprob50}` } : {}),
+      ...(storm.files.windprob64 ? { 74: `${base}/${storm.files.windprob64}` } : {}),
+    };
+  }, [base, storm]);
+  const windFieldUrl = storm?.files.windfield ? `${base}/${storm.files.windfield}` : undefined;
+  const satellite = storm?.satellite
+    ? { ...storm.satellite, url: `${base}/${storm.satellite.image}` }
+    : undefined;
   const outlookGeoUrl = manifest ? `${base}/${manifest.outlook.geojson}` : null;
   const outlookTextUrl = manifest ? `${base}/${manifest.outlook.text}` : null;
 
-  const { data: cone } = useSWR<GeoJSON.FeatureCollection>(coneUrl, jsonFetcher);
-  const { data: track } = useSWR<GeoJSON.FeatureCollection>(trackUrl, jsonFetcher);
-  const { data: wwlines } = useSWR<GeoJSON.FeatureCollection>(
+  const { data: cone, error: coneError } = useSWR<GeoJSON.FeatureCollection>(coneUrl, jsonFetcher, refreshOptions);
+  const { data: track, error: trackError } = useSWR<GeoJSON.FeatureCollection>(trackUrl, jsonFetcher, refreshOptions);
+  const { data: history, error: historyError } = useSWR<GeoJSON.FeatureCollection>(historyUrl, jsonFetcher, refreshOptions);
+  const { data: wwlines, error: wwlinesError } = useSWR<GeoJSON.FeatureCollection>(
     wwlinesUrl,
-    jsonFetcher
+    jsonFetcher,
+    refreshOptions
   );
-  const { data: models } = useSWR<GeoJSON.FeatureCollection>(
+  const { data: models, error: modelsError } = useSWR<GeoJSON.FeatureCollection>(
     modelsUrl,
-    jsonFetcher
+    jsonFetcher,
+    refreshOptions
   );
-  const { data: outlookGeo } = useSWR<GeoJSON.FeatureCollection>(
+  const { data: outlookGeo, error: outlookGeoError } = useSWR<GeoJSON.FeatureCollection>(
     outlookGeoUrl,
-    jsonFetcher
+    jsonFetcher,
+    refreshOptions
   );
-  const { data: intensity } = useSWR<IntensitySeries>(
+  const { data: intensity, error: intensityError } = useSWR<IntensitySeries>(
     intensityUrl,
-    jsonFetcher
+    jsonFetcher,
+    refreshOptions
   );
-  const { data: probs } = useSWR<ProbsEntry[]>(probsUrl, jsonFetcher);
-  const { data: textProducts } = useSWR<StormTextProducts>(textUrl, jsonFetcher);
-  const { data: windProb } = useSWR<GeoJSON.FeatureCollection>(windProbUrl, jsonFetcher);
-  const { data: outlookText } = useSWR<{ issued: string; text: string }>(
+  const { data: probs, error: probsError } = useSWR<ProbsEntry[]>(probsUrl, jsonFetcher, refreshOptions);
+  const { data: textProducts, error: textError } = useSWR<StormTextProducts>(textUrl, jsonFetcher, refreshOptions);
+  const { data: outlookText, error: outlookTextError } = useSWR<{ issued: string; text: string }>(
     outlookTextUrl,
-    jsonFetcher
+    jsonFetcher,
+    refreshOptions
   );
+
+  const status = manifest ? "ready" : manifestError ? "unavailable" : "loading";
+  const dataIssues = useMemo(() => {
+    const issues: { product: string; message: string }[] = [];
+    const addMissing = (product: string, data: unknown, error: unknown) => {
+      if (data === undefined && error) issues.push({ product, message: "Temporarily unavailable" });
+    };
+    addMissing("Forecast cone", cone, coneError);
+    addMissing("Forecast track", track, trackError);
+    if (historyUrl) addMissing("Observed storm history", history, historyError);
+    addMissing("Watches and warnings", wwlines, wwlinesError);
+    addMissing("Model guidance", models, modelsError);
+    addMissing("Intensity guidance", intensity, intensityError);
+    addMissing("Local wind probabilities", probs, probsError);
+    addMissing("Forecast discussion", textProducts, textError);
+    addMissing("Seven-day outlook map", outlookGeo, outlookGeoError);
+    addMissing("Seven-day outlook text", outlookText, outlookTextError);
+    for (const issue of manifest?.errors ?? []) {
+      if (issue.product !== "aifs") {
+        issues.push({ product: issue.product, message: "Latest ingest was incomplete" });
+      }
+    }
+    return issues;
+  }, [
+    cone, coneError, intensity, intensityError, manifest?.errors, models, modelsError,
+    outlookGeo, outlookGeoError, outlookText, outlookTextError, probs, probsError,
+    history, historyError, historyUrl, textProducts, textError, track, trackError, wwlines, wwlinesError,
+  ]);
 
   const mode: Mode = manifest?.mode ?? "quiet";
   const stale = computeStale(manifest, mode, demo);
 
   return {
+    status,
+    retry: () => void retryManifest(),
     manifest: manifest ?? null,
     mode,
     demo,
+    demoParam,
+    dataIssues,
     demoTag: demoTag(demoParam),
+    storms: manifest?.storms ?? [],
     storm,
+    advisories,
+    advisoryIndex,
+    selectAdvisoryIndex,
     otherStorms: otherStormsWithCones,
     geo: {
       cone,
       track,
+      history,
       wwlines,
       models,
       outlook: outlookGeo,
-      windProb,
+      windFieldUrl,
+      windProbUrls,
+      satellite,
     },
     intensity: intensity ?? null,
     outlookText: outlookText ?? null,
@@ -279,4 +413,29 @@ export function useDashboard(): DashboardData {
     textProducts: textProducts ?? null,
     stale,
   };
+}
+
+/** Select one replay frame while retaining the parent storm's frame list. */
+export function selectAdvisory(
+  storm: StormEntry | null,
+  advisoryNum?: string | null
+): StormEntry | null {
+  if (!storm) return null;
+  const frames = storm.advisories ?? [];
+  if (frames.length === 0) return storm;
+  const selected = frames.find((frame) => frame.advisoryNum === advisoryNum) ?? frames[0];
+  return { ...selected, advisories: frames };
+}
+
+const DashboardContext = createContext<DashboardData | null>(null);
+
+export function DashboardProvider({ children }: { children: ReactNode }) {
+  const dashboard = useDashboardSource();
+  return createElement(DashboardContext.Provider, { value: dashboard }, children);
+}
+
+export function useDashboard(): DashboardData {
+  const dashboard = useContext(DashboardContext);
+  if (!dashboard) throw new Error("useDashboard must be used inside DashboardProvider");
+  return dashboard;
 }

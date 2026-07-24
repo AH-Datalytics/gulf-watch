@@ -45,6 +45,18 @@ export function cdtTime(iso: string): string {
   return `${time} ${tzPart ?? "CT"}`;
 }
 
+/** Full Central date and time for historical/advisory context. */
+export function cdtDateTime(iso: string): string {
+  const date = new Date(iso);
+  const calendarDate = new Intl.DateTimeFormat("en-US", {
+    timeZone: CHICAGO_TIME_ZONE,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+  return `${calendarDate} at ${cdtTime(iso)}`;
+}
+
 /**
  * Render the time remaining until `toIso` as "T−H:MM" (e.g. "T−2:41").
  * Clamps to "T−0:00" once the target has passed. `now` is injectable for tests.
@@ -110,13 +122,16 @@ export function formatCycle(modelCycle: string): string {
   return `${hh}Z`;
 }
 
-function chicagoHour(date: Date): number {
-  const s = new Intl.DateTimeFormat("en-US", {
+function chicagoTimeParts(date: Date): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: CHICAGO_TIME_ZONE,
     hour: "numeric",
+    minute: "numeric",
     hour12: false,
-  }).format(date);
-  return Number(s) % 24;
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0) % 24;
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? 0);
+  return { hour, minute };
 }
 
 // NHC's Tropical Weather Outlook issues four times daily in Chicago local
@@ -125,16 +140,17 @@ const OUTLOOK_ISSUE_HOURS_CDT = [1, 7, 13, 19];
 
 /**
  * Renders the next scheduled Tropical Weather Outlook issue time (CDT) after
- * `issuedIso`, e.g. issued 1:00 PM CDT -> "7:00 PM CDT". Walks forward an hour
- * at a time (at most a day) so DST transitions resolve the same way `cdtTime`
- * does, via Intl rather than manual UTC-offset math.
+ * `issuedIso`, e.g. issued 1:00 PM CDT -> "7:00 PM CDT". Walks forward one
+ * minute at a time so an off-schedule source timestamp such as 12:13 PM can
+ * never leak its minutes into the fixed NHC issue slots.
  */
 export function nextOutlookIssueTime(issuedIso: string): string {
   const issued = new Date(issuedIso);
   let t = issued;
-  for (let i = 0; i < 24; i++) {
-    t = new Date(t.getTime() + 60 * 60 * 1000);
-    if (OUTLOOK_ISSUE_HOURS_CDT.includes(chicagoHour(t))) {
+  for (let i = 0; i < 24 * 60; i++) {
+    t = new Date(t.getTime() + 60 * 1000);
+    const { hour, minute } = chicagoTimeParts(t);
+    if (minute === 0 && OUTLOOK_ISSUE_HOURS_CDT.includes(hour)) {
       return cdtTime(t.toISOString());
     }
   }

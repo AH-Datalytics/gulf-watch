@@ -2,7 +2,10 @@ name: Ingest
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # GitHub's scheduler is best-effort and was dropping/delaying runs at
+    # :00/:30. Four off-peak attempts per hour keep the effective freshness
+    # near 30 minutes even when an individual scheduled event is skipped.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
 
 jobs:

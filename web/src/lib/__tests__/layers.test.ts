@@ -1,15 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LAYER_STATE, toggleLayer } from "../layers";
+import { DEFAULT_LAYER_STATE, DEMO_LAYER_STATE, toggleLayer } from "../layers";
 
 describe("DEFAULT_LAYER_STATE", () => {
   it("starts with cone/models/windProb/graphs on, rain/radar off", () => {
     expect(DEFAULT_LAYER_STATE).toEqual({
       cone: true,
+      history: true,
+      satellite: false,
       models: true,
+      windField: false,
       windProb: true,
       rain: false,
       radar: false,
       graphs: true,
+    });
+  });
+});
+
+describe("DEMO_LAYER_STATE", () => {
+  it("starts historical demos with only the forecast cone enabled", () => {
+    expect(DEMO_LAYER_STATE).toEqual({
+      cone: true,
+      history: true,
+      satellite: false,
+      models: false,
+      windField: false,
+      windProb: false,
+      rain: false,
+      radar: false,
+      graphs: false,
     });
   });
 });

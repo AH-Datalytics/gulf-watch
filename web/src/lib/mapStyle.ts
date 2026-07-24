@@ -8,15 +8,16 @@
 // branching) — EXCEPT the watch/warning line colors, which per the task
 // brief are four fixed hex values.
 
-import type { StyleSpecification, Map as MapLibreMap } from "maplibre-gl";
+import type { ExpressionSpecification, StyleSpecification, Map as MapLibreMap } from "maplibre-gl";
 
 /** New Orleans marker location (fixed point of reference on both maps). */
 export const NOLA_LNGLAT: [number, number] = [-90.07, 29.95];
 
-/** Initial map bounds, per the task brief: lon -98..-80, lat 18..31. */
+/** Initial Gulf view: east Texas sits near the western edge while the
+ * central Gulf and the Cuba-to-Louisiana corridor remain the visual focus. */
 export const INITIAL_BOUNDS: [[number, number], [number, number]] = [
-  [-98, 18],
-  [-80, 31],
+  [-95.5, 19],
+  [-80, 32],
 ];
 
 // Esri World Imagery (satellite/terrain) + reference labels overlay, per the
@@ -87,6 +88,16 @@ export const WW_COLORS = {
   surge: "#b04fd6",
 } as const;
 
+export type WWKind = keyof typeof WW_COLORS;
+
+export const WW_LEGEND_ITEMS: ReadonlyArray<{ kind: WWKind; label: string }> = [
+  { kind: "hurricaneWarning", label: "Hurricane warning" },
+  { kind: "hurricaneWatch", label: "Hurricane watch" },
+  { kind: "tsWarning", label: "Tropical storm warning" },
+  { kind: "tsWatch", label: "Tropical storm watch" },
+  { kind: "surge", label: "Storm surge watch/warning" },
+];
+
 /**
  * Classifies a wwlines feature's TCWW code into a line color.
  *
@@ -100,12 +111,16 @@ export const WW_COLORS = {
  * a code ending "A" (...Watch) gets the paler shade, everything else
  * (ending "R"/"U"/other) is treated as the warning-tier color.
  */
-export function wwColor(tcww: string | undefined | null): string {
+export function wwKind(tcww: string | undefined | null): WWKind {
   const code = (tcww ?? "").toUpperCase();
-  if (code.startsWith("S")) return WW_COLORS.surge;
+  if (code.startsWith("S")) return "surge";
   const isWatch = code.endsWith("A");
-  if (code.startsWith("H")) return isWatch ? WW_COLORS.hurricaneWatch : WW_COLORS.hurricaneWarning;
-  return isWatch ? WW_COLORS.tsWatch : WW_COLORS.tsWarning;
+  if (code.startsWith("H")) return isWatch ? "hurricaneWatch" : "hurricaneWarning";
+  return isWatch ? "tsWatch" : "tsWarning";
+}
+
+export function wwColor(tcww: string | undefined | null): string {
+  return WW_COLORS[wwKind(tcww)];
 }
 
 /**
@@ -275,13 +290,13 @@ export interface Graticule {
 
 // Lines are generated across a wide box (matching the clipped land extent) so
 // panning has margin; labels, though, are pinned near the south/west edge of
-// the *initial view* (INITIAL_BOUNDS is lon -98..-80 lat 18..31) rather than
+// the *initial view* (INITIAL_BOUNDS is lon -95.5..-80 lat 19..32) rather than
 // the wider line bbox, so they land inside the default viewport instead of
 // off-screen past its edge.
 const GRATICULE_BBOX = { lonMin: -100, lonMax: -72, latMin: 15, latMax: 33 };
 const GRATICULE_STEP = 2;
-const LABEL_LAT_EDGE = 18.4;
-const LABEL_LON_EDGE = -97.6;
+const LABEL_LAT_EDGE = 19.4;
+const LABEL_LON_EDGE = -95.1;
 
 /** Generates a 2-degree lon/lat grid as GeoJSON LineStrings, plus label points along the south/west edges. */
 export function buildGraticule(
@@ -365,9 +380,9 @@ function categoryFromMph(mph: number): 1 | 2 | 3 | 4 | 5 {
  *   and `label` ("WED 4A") given directly.
  * - real NHC track.geojson (confirmed via a live fetch of
  *   storms/al022026/track.geojson): no `category`/`label` fields at all —
- *   instead `STORMTYPE` ("TS"/"TD"/"STD"/"HU"), `MAXWIND` in knots, and
- *   `DATELBL` ("4:00 AM Thu"). For STORMTYPE "HU" the category number is
- *   derived from MAXWIND; other STORMTYPEs are shown as-is (TS/TD/STD/SD).
+ *   instead `STORMTYPE` ("TS"/"TD"/"STD"/"HU"/"MH"), `MAXWIND` in knots,
+ *   and `DATELBL` ("4:00 AM Thu"). Hurricane labels use the category derived
+ *   from MAXWIND so viewers never have to decode the NHC's "MH" abbreviation.
  */
 export function trackPointLabel(props: GeoJSON.GeoJsonProperties): string {
   if (!props) return "";
@@ -379,7 +394,7 @@ export function trackPointLabel(props: GeoJSON.GeoJsonProperties): string {
     classText = /^\d+$/.test(c) ? `CAT ${c}` : c;
   } else if (props.STORMTYPE) {
     const stype = String(props.STORMTYPE);
-    if (stype === "HU") {
+    if (stype === "HU" || stype === "MH") {
       const kt = Number(props.MAXWIND) || 0;
       classText = `CAT ${categoryFromMph(Math.round(kt * KT_TO_MPH))}`;
     } else {
@@ -388,6 +403,25 @@ export function trackPointLabel(props: GeoJSON.GeoJsonProperties): string {
   }
 
   return [classText, dateText].filter(Boolean).join(" · ");
+}
+
+export type StormSymbolKind = "td" | "ts" | "hu";
+
+/** Map NHC and demo classifications to the standard tropical-cyclone symbols. */
+export function stormSymbolKind(props: GeoJSON.GeoJsonProperties): StormSymbolKind {
+  const stormType = String(props?.STORMTYPE ?? props?.stormType ?? "").toUpperCase();
+  if (["HU", "MH"].includes(stormType)) return "hu";
+  if (["TS", "SS", "STS"].includes(stormType)) return "ts";
+  if (["TD", "SD", "STD"].includes(stormType)) return "td";
+
+  const category = String(props?.category ?? "").toUpperCase();
+  if (/^[1-5]$/.test(category) || ["HU", "MH"].includes(category)) return "hu";
+  if (["TS", "SS", "STS"].includes(category)) return "ts";
+  if (["TD", "SD", "STD"].includes(category)) return "td";
+
+  // A named current storm with incomplete classification data is most safely
+  // represented by the hollow tropical-storm symbol, not a hurricane symbol.
+  return "ts";
 }
 
 /** Genesis-area label like "60% · 7-DAY" from NHC gtwo outlook properties. */
@@ -426,6 +460,7 @@ export const RADAR_TILE_URL =
 
 export const LAYER_IDS = {
   imagery: "gw-imagery",
+  satellite: "gw-weather-satellite",
   labels: "gw-labels",
   graticule: "gw-graticule",
   outlookFill: "gw-outlook-fill",
@@ -436,7 +471,11 @@ export const LAYER_IDS = {
   otherConesFill: "gw-other-cones-fill",
   otherConesLineCasing: "gw-other-cones-line-casing",
   otherConesLine: "gw-other-cones-line",
+  historyLineCasing: "gw-history-line-casing",
+  historyLine: "gw-history-line",
+  historyPoints: "gw-history-points",
   wwlines: "gw-wwlines",
+  windFieldFill: "gw-windfield-fill",
   windProbFill: "gw-windprob-fill",
   windProbLine: "gw-windprob-line",
   modelsEnsemble: "gw-models-ensemble",
@@ -445,18 +484,20 @@ export const LAYER_IDS = {
   trackLineCasing: "gw-track-line-casing",
   trackLine: "gw-track-line",
   trackPoints: "gw-track-points",
-  trackNow: "gw-track-now",
   radar: "gw-radar",
 } as const;
 
 export const SOURCE_IDS = {
   imagery: "gw-imagery",
+  satellite: "gw-weather-satellite",
   labels: "gw-labels",
   graticule: "gw-graticule",
   outlook: "gw-outlook",
   cone: "gw-cone",
   otherCones: "gw-other-cones",
+  history: "gw-history",
   wwlines: "gw-wwlines",
+  windField: "gw-windfield",
   windProb: "gw-windprob",
   models: "gw-models",
   track: "gw-track",
@@ -503,6 +544,23 @@ export const WIND_PROB_BANDS: { label: string; color: string }[] = Object.entrie
   ([label, color]) => ({ label, color })
 );
 
+/** NHC initial-wind-radii thresholds. Stronger winds form progressively
+ * smaller nested extents inside the 39 mph field. */
+export const WIND_FIELD_BANDS = [
+  { knots: 34, mph: 39, color: "#f2cf5b" },
+  { knots: 50, mph: 58, color: "#ee8b3a" },
+  { knots: 64, mph: 74, color: "#d84c4c" },
+] as const;
+
+const WIND_FIELD_COLOR: ExpressionSpecification = [
+  "match",
+  ["to-number", ["get", "RADII"]],
+  34, WIND_FIELD_BANDS[0].color,
+  50, WIND_FIELD_BANDS[1].color,
+  64, WIND_FIELD_BANDS[2].color,
+  "#8a94a3",
+];
+
 /** Builds the initial (empty dynamic-source) MapLibre style. Colors are seeded from
  * whatever mode is current at build time; applyModeColors() re-syncs them on mode change. */
 export function buildInitialStyle(): StyleSpecification {
@@ -518,6 +576,16 @@ export function buildInitialStyle(): StyleSpecification {
         tileSize: 256,
         attribution: ESRI_ATTRIBUTION,
       },
+      [SOURCE_IDS.satellite]: {
+        type: "image",
+        url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==",
+        coordinates: [
+          [-95.5, 32],
+          [-80, 32],
+          [-80, 19],
+          [-95.5, 19],
+        ],
+      },
       [SOURCE_IDS.labels]: {
         type: "raster",
         tiles: [ESRI_LABELS_TILE_URL],
@@ -528,7 +596,9 @@ export function buildInitialStyle(): StyleSpecification {
       [SOURCE_IDS.outlook]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.cone]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.otherCones]: { type: "geojson", data: EMPTY_FC },
+      [SOURCE_IDS.history]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.wwlines]: { type: "geojson", data: EMPTY_FC },
+      [SOURCE_IDS.windField]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.windProb]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.models]: { type: "geojson", data: EMPTY_FC },
       [SOURCE_IDS.track]: { type: "geojson", data: EMPTY_FC },
@@ -544,6 +614,22 @@ export function buildInitialStyle(): StyleSpecification {
         id: LAYER_IDS.imagery,
         type: "raster",
         source: SOURCE_IDS.imagery,
+        paint: {
+          "raster-brightness-max": 0.7,
+          "raster-saturation": -0.28,
+          "raster-contrast": 0.18,
+        },
+      },
+      {
+        id: LAYER_IDS.satellite,
+        type: "raster",
+        source: SOURCE_IDS.satellite,
+        layout: { visibility: "none" },
+        paint: {
+          "raster-opacity": 0.9,
+          "raster-fade-duration": 0,
+          "raster-contrast": 0.08,
+        },
       },
       {
         id: LAYER_IDS.labels,
@@ -624,6 +710,50 @@ export function buildInitialStyle(): StyleSpecification {
           "line-dasharray": [6, 4],
         },
       },
+      {
+        id: LAYER_IDS.historyLineCasing,
+        type: "line",
+        source: SOURCE_IDS.history,
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: { "line-color": "rgba(4, 25, 42, 0.9)", "line-width": 4.4 },
+      },
+      {
+        id: LAYER_IDS.historyLine,
+        type: "line",
+        source: SOURCE_IDS.history,
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": "#5cc7ef",
+          "line-width": 2.2,
+          "line-dasharray": [2, 2],
+        },
+      },
+      {
+        id: LAYER_IDS.historyPoints,
+        type: "circle",
+        source: SOURCE_IDS.history,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-color": "#5cc7ef",
+          "circle-radius": 3.2,
+          "circle-stroke-color": "#071f31",
+          "circle-stroke-width": 1.1,
+        },
+      },
+      // Current analyzed wind field. This is separate from probability:
+      // these are the advisory-time 34/50/64 kt radii reported by NHC.
+      {
+        id: LAYER_IDS.windFieldFill,
+        type: "fill",
+        source: SOURCE_IDS.windField,
+        layout: {
+          visibility: "none",
+          // Draw stronger wind radii last: yellow 34 kt, orange 50 kt,
+          // then red 64 kt on top at the storm's core.
+          "fill-sort-key": ["to-number", ["get", "RADII"]],
+        },
+        paint: { "fill-color": WIND_FIELD_COLOR, "fill-opacity": 0.7 },
+      },
       // Wind-probability shaded field (Round 2, v2 addendum) — a graduated
       // fill (11 percentage bands) under everything else drawn above it
       // (cone/track/ww/models), matching NHC's own shaded wind-probability
@@ -663,8 +793,8 @@ export function buildInitialStyle(): StyleSpecification {
         filter: ["==", ["get", "kind"], "ensemble"],
         paint: {
           "line-color": ["get", "_color"],
-          "line-width": 0.7,
-          "line-opacity": 0.4,
+          "line-width": 1,
+          "line-opacity": 0.58,
         },
       },
       {
@@ -674,7 +804,7 @@ export function buildInitialStyle(): StyleSpecification {
         filter: ["all", ["!=", ["get", "kind"], "ai"], ["!=", ["get", "kind"], "ensemble"]],
         paint: {
           "line-color": ["get", "_color"],
-          "line-width": 1.6,
+          "line-width": 2.35,
           "line-opacity": 1,
         },
       },
@@ -685,7 +815,7 @@ export function buildInitialStyle(): StyleSpecification {
         filter: ["==", ["get", "kind"], "ai"],
         paint: {
           "line-color": ["get", "_color"],
-          "line-width": 1.8,
+          "line-width": 2.5,
           "line-opacity": 1,
           "line-dasharray": [2, 2],
         },
@@ -713,28 +843,16 @@ export function buildInitialStyle(): StyleSpecification {
         id: LAYER_IDS.trackPoints,
         type: "circle",
         source: SOURCE_IDS.track,
-        filter: ["==", ["geometry-type"], "Point"],
+        filter: [
+          "all",
+          ["==", ["geometry-type"], "Point"],
+          ["!=", ["to-number", ["coalesce", ["get", "TAU"], 0]], 0],
+        ],
         paint: {
           "circle-color": "#ffffff",
           "circle-radius": 4.5,
           "circle-stroke-color": "#1c2024",
           "circle-stroke-width": 1.2,
-        },
-      },
-      {
-        id: LAYER_IDS.trackNow,
-        type: "circle",
-        source: SOURCE_IDS.track,
-        filter: [
-          "all",
-          ["==", ["geometry-type"], "Point"],
-          ["==", ["to-number", ["coalesce", ["get", "TAU"], 0]], 0],
-        ],
-        paint: {
-          "circle-radius": 9,
-          "circle-color": "rgba(0,0,0,0)",
-          "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": 2.5,
         },
       },
       {
