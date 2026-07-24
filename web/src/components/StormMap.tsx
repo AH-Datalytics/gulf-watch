@@ -325,7 +325,7 @@ export default function StormMap({
   // --- archived, time-matched GOES image reprojected to Web Mercator ---
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !loaded || !geo.satellite) return;
+    if (!map || !loaded || !layers.satellite || !geo.satellite) return;
     const [[west, south], [east, north]] = geo.satellite.bounds;
     const src = map.getSource(SOURCE_IDS.satellite) as ImageSource | undefined;
     src?.updateImage({
@@ -337,7 +337,7 @@ export default function StormMap({
         [west, south],
       ],
     });
-  }, [geo.satellite, loaded]);
+  }, [geo.satellite, layers.satellite, loaded]);
 
   // --- watch/warning lines (fixed colors, independent of mode) ---
   useEffect(() => {

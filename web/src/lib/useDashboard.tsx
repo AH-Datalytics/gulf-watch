@@ -48,11 +48,11 @@ const LIVE_REFRESH_MS = 5 * 60 * 1000;
 // full navigation/reload, so the subscribe callback never needs to fire; we
 // still return a real (no-op) unsubscribe function rather than skipping
 // useSyncExternalStore altogether, since that's the documented contract.
-function useDemoParam(): string | null {
-  return useSyncExternalStore(
+function useDemoParam(): string | null | undefined {
+  return useSyncExternalStore<string | null | undefined>(
     () => () => {}, // never re-subscribes; query string can't change without reload
     () => new URLSearchParams(window.location.search).get("demo"), // client snapshot
-    () => null // server snapshot
+    () => undefined // unresolved during SSR/hydration; do not fetch the live manifest yet
   );
 }
 
@@ -101,6 +101,11 @@ export function manifestUrl(demoParam: string | null): string {
   if (demoParam === "bertha") return `${DEMO_BASE}/bertha/manifest.json`;
   if (demoParam !== null) return `${DEMO_BASE}/ida/manifest.json`;
   return `${BLOB_BASE}/manifest.json`;
+}
+
+/** Hold all manifest requests until hydration has resolved the query string. */
+export function resolvedManifestUrl(demoParam: string | null | undefined): string | null {
+  return demoParam === undefined ? null : manifestUrl(demoParam);
 }
 
 /**
@@ -224,12 +229,13 @@ function useDashboardSource(): DashboardData {
   const stormParam = useStormParam();
   const advisoryParam = useAdvisoryParam();
   const [advisoryOverride, setAdvisoryOverride] = useState<string | null>(null);
-  const demo = demoParam !== null;
+  const demo = demoParam !== null && demoParam !== undefined;
   const base = demo ? DEMO_BASE : BLOB_BASE;
   const refreshOptions = { refreshInterval: demo ? 0 : LIVE_REFRESH_MS };
+  const manifestKey = resolvedManifestUrl(demoParam);
 
   const { data: manifest, error: manifestError, mutate: retryManifest } = useSWR<Manifest>(
-    manifestUrl(demoParam),
+    manifestKey,
     jsonFetcher,
     refreshOptions
   );
@@ -387,9 +393,9 @@ function useDashboardSource(): DashboardData {
     manifest: manifest ?? null,
     mode,
     demo,
-    demoParam,
+    demoParam: demoParam ?? null,
     dataIssues,
-    demoTag: demoTag(demoParam),
+    demoTag: demoTag(demoParam ?? null),
     storms: manifest?.storms ?? [],
     storm,
     advisories,

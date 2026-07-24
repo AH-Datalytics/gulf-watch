@@ -3,6 +3,7 @@ import {
   computeStale,
   demoTag,
   manifestUrl,
+  resolvedManifestUrl,
   otherStorms,
   selectAdvisory,
   selectStorm,
@@ -15,6 +16,14 @@ import type { Manifest, StormEntry } from "../types";
 // and isn't unit-tested at this level.
 
 describe("manifestUrl", () => {
+  it("does not fetch anything before hydration resolves the query string", () => {
+    expect(resolvedManifestUrl(undefined)).toBeNull();
+  });
+
+  it("resolves live mode only after hydration confirms there is no demo parameter", () => {
+    expect(resolvedManifestUrl(null)).toBe("/manifest.json");
+  });
+
   it("live (non-demo) fetches the Blob-hosted manifest", () => {
     expect(manifestUrl(null)).toBe("/manifest.json");
   });

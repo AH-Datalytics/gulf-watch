@@ -22,18 +22,23 @@ export function AdvisoryPlayback({
   const current = advisories[currentIndex];
 
   // Warm the browser cache one frame ahead so a playing replay changes all
-  // map and rail products together instead of briefly showing empty layers.
+  // essential map products together. Do not preload before Play: the large
+  // optional wind-probability and satellite files made the initial Ida view
+  // compete with an advisory the viewer had not requested yet.
   useEffect(() => {
+    if (!playing) return;
     const next = advisories[currentIndex + 1];
     if (!next) return;
     const paths = [
-      ...Object.values(next.files),
-      ...(next.satellite ? [next.satellite.image] : []),
+      next.files.cone,
+      next.files.track,
+      ...(next.files.history ? [next.files.history] : []),
+      next.files.wwlines,
     ];
     for (const path of paths) {
       void fetch(`/demo/${path}`, { cache: "force-cache" }).catch(() => undefined);
     }
-  }, [advisories, currentIndex]);
+  }, [advisories, currentIndex, playing]);
 
   useEffect(() => {
     if (!playing || currentIndex >= lastIndex) return;

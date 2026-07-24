@@ -5,8 +5,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { AdvisoryPlayback } from "@/components/AdvisoryPlayback";
-import StormMap from "@/components/StormMap";
 import { IntensityPanel } from "@/components/IntensityPanel";
 import { Rail } from "@/components/Rail";
 import { cdtTime, formatCycle } from "@/lib/format";
@@ -14,10 +14,21 @@ import { DEFAULT_LAYER_STATE, DEMO_LAYER_STATE, toggleLayer, type WindThreshold 
 import { allModelCodes } from "@/lib/mapStyle";
 import { useDashboard } from "@/lib/useDashboard";
 
+const StormMap = dynamic(() => import("@/components/StormMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="gw-map-loading" role="status">
+      Loading map…
+    </div>
+  ),
+});
+
 export default function Home() {
   const dashboard = useDashboard();
   const [visibleModels, setVisibleModels] = useState<Set<string>>(new Set());
-  const [layers, setLayers] = useState(DEFAULT_LAYER_STATE);
+  // Start with the lightweight cone-first state while the URL mode resolves.
+  // Live mode expands to DEFAULT_LAYER_STATE as soon as its manifest arrives.
+  const [layers, setLayers] = useState(DEMO_LAYER_STATE);
   const [windThreshold, setWindThreshold] = useState<WindThreshold>(39);
   const [discussionOpen, setDiscussionOpen] = useState(false);
   const initializedLayerModeRef = useRef<boolean | null>(null);
