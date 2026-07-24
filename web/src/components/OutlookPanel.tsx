@@ -31,6 +31,17 @@ export function OutlookPanel({ outlookText }: OutlookPanelProps) {
             {nextOutlookIssueTime(outlookText.issued)}
           </div>
         )}
+        <div className="demo-callout">
+          <div>
+            <div className="demo-callout-title">Explore a historical storm</div>
+            <div className="demo-callout-copy">
+              See the full dashboard using Hurricane Ida data from August 2021.
+            </div>
+          </div>
+          <a className="demo-link" href="/demo/ida">
+            View Ida demo <span aria-hidden="true">→</span>
+          </a>
+        </div>
       </div>
       {outlookText && (
         <div>

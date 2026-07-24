@@ -254,6 +254,53 @@ a {
   margin-top: 6px;
 }
 
+.demo-callout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px;
+  background: var(--panel-muted);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.demo-callout-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--title);
+}
+
+.demo-callout-copy {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+
+.demo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 9px 13px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.demo-link:hover {
+  background: #172d4a;
+}
+
+.demo-link:focus-visible {
+  outline: 3px solid rgba(31, 58, 95, 0.35);
+  outline-offset: 2px;
+}
+
 /* Section heading — plain-language, mixed case, no letter-spacing/caps.
    Whitespace does the separating work; no rule under most of these. */
 .kicker {
@@ -918,4 +965,3 @@ a {
   color: #ffffff;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6);
 }
-
