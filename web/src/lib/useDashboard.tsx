@@ -17,6 +17,20 @@ import type { Manifest, StormEntry, IntensitySeries, Mode, ProbsEntry, StormText
 
 const DEMO_BASE = "/demo";
 const LIVE_REFRESH_MS = 5 * 60 * 1000;
+const VERSIONED_DATA_OPTIONS = {
+  revalidateIfStale: false,
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+};
+
+declare global {
+  interface Window {
+    __GULF_WATCH_MANIFEST_PREFETCH__?: {
+      url: string;
+      promise: Promise<Manifest>;
+    };
+  }
+}
 
 // Design note: we read the `?demo=` flag via window.location.search rather
 // than next/navigation's useSearchParams. useSearchParams is a Client
@@ -73,12 +87,42 @@ function useAdvisoryParam(): string | null {
 }
 
 const jsonFetcher = async <T,>(url: string): Promise<T> => {
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
 };
+
+const manifestFetcher = async (url: string): Promise<Manifest> => {
+  if (typeof window !== "undefined") {
+    const prefetched = window.__GULF_WATCH_MANIFEST_PREFETCH__;
+    if (prefetched?.url === url) {
+      delete window.__GULF_WATCH_MANIFEST_PREFETCH__;
+      try {
+        return await prefetched.promise;
+      } catch {
+        // Fall through to a normal retry so an early transient failure does
+        // not turn into the dashboard's terminal unavailable state.
+      }
+    }
+  }
+
+  const requestUrl = url === `${BLOB_BASE}/manifest.json`
+    ? `${url}?v=${Math.floor(Date.now() / LIVE_REFRESH_MS)}`
+    : url;
+  const response = await fetch(requestUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<Manifest>;
+};
+
+/** Stable cache key for advisory-scoped products that never change in place. */
+export function versionedDataUrl(base: string, path: string, version?: string | null): string {
+  const url = `${base}/${path}`;
+  return version ? `${url}?v=${encodeURIComponent(version)}` : url;
+}
 
 /**
  * Manifest URL for a given `?demo=` value. `demo=bertha` fetches a real
@@ -236,7 +280,7 @@ function useDashboardSource(): DashboardData {
 
   const { data: manifest, error: manifestError, mutate: retryManifest } = useSWR<Manifest>(
     manifestKey,
-    jsonFetcher,
+    manifestFetcher,
     refreshOptions
   );
 
@@ -278,7 +322,7 @@ function useDashboardSource(): DashboardData {
     [manifest, storm]
   );
   const otherConeUrls = useMemo(
-    () => otherStormEntries.map((s) => `${base}/${s.files.cone}`),
+    () => otherStormEntries.map((s) => versionedDataUrl(base, s.files.cone, `${s.advisoryNum}-${s.modelCycle}`)),
     [otherStormEntries, base]
   );
   // One combined SWR fetch (Promise.all over the URL list) rather than one
@@ -288,7 +332,7 @@ function useDashboardSource(): DashboardData {
   const { data: otherCones } = useSWR<GeoJSON.FeatureCollection[]>(
     otherConeUrls.length > 0 ? otherConeUrls : null,
     (urls: string[]) => Promise.all(urls.map((u) => jsonFetcher<GeoJSON.FeatureCollection>(u))),
-    refreshOptions
+    VERSIONED_DATA_OPTIONS
   );
   const otherStormsWithCones = useMemo<OtherStorm[]>(
     () =>
@@ -302,58 +346,64 @@ function useDashboardSource(): DashboardData {
     [otherStormEntries, otherCones]
   );
 
-  const coneUrl = storm ? `${base}/${storm.files.cone}` : null;
-  const trackUrl = storm ? `${base}/${storm.files.track}` : null;
-  const historyUrl = storm?.files.history ? `${base}/${storm.files.history}` : null;
-  const wwlinesUrl = storm ? `${base}/${storm.files.wwlines}` : null;
-  const modelsUrl = storm ? `${base}/${storm.files.models}` : null;
-  const intensityUrl = storm ? `${base}/${storm.files.intensity}` : null;
-  const probsUrl = storm ? `${base}/${storm.files.probs}` : null;
-  const textUrl = storm ? `${base}/${storm.files.text}` : null;
+  const stormVersion = storm ? `${storm.advisoryNum}-${storm.modelCycle}` : null;
+  const stormFileUrl = (path: string) => versionedDataUrl(base, path, stormVersion);
+  const coneUrl = storm ? stormFileUrl(storm.files.cone) : null;
+  const trackUrl = storm ? stormFileUrl(storm.files.track) : null;
+  const historyUrl = storm?.files.history ? stormFileUrl(storm.files.history) : null;
+  const wwlinesUrl = storm ? stormFileUrl(storm.files.wwlines) : null;
+  const modelsUrl = storm ? stormFileUrl(storm.files.models) : null;
+  const intensityUrl = storm ? stormFileUrl(storm.files.intensity) : null;
+  const probsUrl = storm ? stormFileUrl(storm.files.probs) : null;
+  const textUrl = storm ? stormFileUrl(storm.files.text) : null;
   const windProbUrls = useMemo<Partial<Record<WindThreshold, string>>>(() => {
     if (!storm) return {};
     return {
-      ...(storm.files.windprob ? { 39: `${base}/${storm.files.windprob}` } : {}),
-      ...(storm.files.windprob50 ? { 58: `${base}/${storm.files.windprob50}` } : {}),
-      ...(storm.files.windprob64 ? { 74: `${base}/${storm.files.windprob64}` } : {}),
+      ...(storm.files.windprob ? { 39: versionedDataUrl(base, storm.files.windprob, stormVersion) } : {}),
+      ...(storm.files.windprob50 ? { 58: versionedDataUrl(base, storm.files.windprob50, stormVersion) } : {}),
+      ...(storm.files.windprob64 ? { 74: versionedDataUrl(base, storm.files.windprob64, stormVersion) } : {}),
     };
-  }, [base, storm]);
-  const windFieldUrl = storm?.files.windfield ? `${base}/${storm.files.windfield}` : undefined;
+  }, [base, storm, stormVersion]);
+  const windFieldUrl = storm?.files.windfield ? stormFileUrl(storm.files.windfield) : undefined;
   const satellite = storm?.satellite
-    ? { ...storm.satellite, url: `${base}/${storm.satellite.image}` }
+    ? { ...storm.satellite, url: stormFileUrl(storm.satellite.image) }
     : undefined;
-  const outlookGeoUrl = manifest ? `${base}/${manifest.outlook.geojson}` : null;
-  const outlookTextUrl = manifest ? `${base}/${manifest.outlook.text}` : null;
+  const outlookGeoUrl = manifest?.mode === "quiet"
+    ? versionedDataUrl(base, manifest.outlook.geojson, manifest.outlook.issued)
+    : null;
+  const outlookTextUrl = manifest?.mode === "quiet"
+    ? versionedDataUrl(base, manifest.outlook.text, manifest.outlook.issued)
+    : null;
 
-  const { data: cone, error: coneError } = useSWR<GeoJSON.FeatureCollection>(coneUrl, jsonFetcher, refreshOptions);
-  const { data: track, error: trackError } = useSWR<GeoJSON.FeatureCollection>(trackUrl, jsonFetcher, refreshOptions);
-  const { data: history, error: historyError } = useSWR<GeoJSON.FeatureCollection>(historyUrl, jsonFetcher, refreshOptions);
+  const { data: cone, error: coneError } = useSWR<GeoJSON.FeatureCollection>(coneUrl, jsonFetcher, VERSIONED_DATA_OPTIONS);
+  const { data: track, error: trackError } = useSWR<GeoJSON.FeatureCollection>(trackUrl, jsonFetcher, VERSIONED_DATA_OPTIONS);
+  const { data: history, error: historyError } = useSWR<GeoJSON.FeatureCollection>(historyUrl, jsonFetcher, VERSIONED_DATA_OPTIONS);
   const { data: wwlines, error: wwlinesError } = useSWR<GeoJSON.FeatureCollection>(
     wwlinesUrl,
     jsonFetcher,
-    refreshOptions
+    VERSIONED_DATA_OPTIONS
   );
   const { data: models, error: modelsError } = useSWR<GeoJSON.FeatureCollection>(
     modelsUrl,
     jsonFetcher,
-    refreshOptions
+    VERSIONED_DATA_OPTIONS
   );
   const { data: outlookGeo, error: outlookGeoError } = useSWR<GeoJSON.FeatureCollection>(
     outlookGeoUrl,
     jsonFetcher,
-    refreshOptions
+    VERSIONED_DATA_OPTIONS
   );
   const { data: intensity, error: intensityError } = useSWR<IntensitySeries>(
     intensityUrl,
     jsonFetcher,
-    refreshOptions
+    VERSIONED_DATA_OPTIONS
   );
-  const { data: probs, error: probsError } = useSWR<ProbsEntry[]>(probsUrl, jsonFetcher, refreshOptions);
-  const { data: textProducts, error: textError } = useSWR<StormTextProducts>(textUrl, jsonFetcher, refreshOptions);
+  const { data: probs, error: probsError } = useSWR<ProbsEntry[]>(probsUrl, jsonFetcher, VERSIONED_DATA_OPTIONS);
+  const { data: textProducts, error: textError } = useSWR<StormTextProducts>(textUrl, jsonFetcher, VERSIONED_DATA_OPTIONS);
   const { data: outlookText, error: outlookTextError } = useSWR<{ issued: string; text: string }>(
     outlookTextUrl,
     jsonFetcher,
-    refreshOptions
+    VERSIONED_DATA_OPTIONS
   );
 
   const status = manifest ? "ready" : manifestError ? "unavailable" : "loading";

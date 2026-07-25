@@ -7,6 +7,7 @@ import {
   otherStorms,
   selectAdvisory,
   selectStorm,
+  versionedDataUrl,
 } from "../useDashboard";
 import type { Manifest, StormEntry } from "../types";
 
@@ -49,6 +50,18 @@ describe("manifestUrl", () => {
 
   it("any other non-null demo value falls back to the Ida flagship sample", () => {
     expect(manifestUrl("anything-else")).toBe("/demo/ida/manifest.json");
+  });
+});
+
+describe("versionedDataUrl", () => {
+  it("adds an encoded advisory version so unchanged products remain cacheable", () => {
+    expect(versionedDataUrl("/demo", "ida/cone.geojson", "6-2021082718"))
+      .toBe("/demo/ida/cone.geojson?v=6-2021082718");
+  });
+
+  it("supports an empty live base URL", () => {
+    expect(versionedDataUrl("", "outlook.json", "2026-07-24T18:00:00Z"))
+      .toBe("/outlook.json?v=2026-07-24T18%3A00%3A00Z");
   });
 });
 

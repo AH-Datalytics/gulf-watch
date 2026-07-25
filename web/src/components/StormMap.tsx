@@ -102,12 +102,23 @@ export interface StormMapProps {
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+const VERSIONED_DATA_OPTIONS = {
+  revalidateIfStale: false,
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+};
 const WIND_THRESHOLDS: WindThreshold[] = [39, 58, 74];
 
 async function geoJsonFetcher(url: string): Promise<GeoJSON.FeatureCollection> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch wind probability: ${response.status}`);
   return response.json() as Promise<GeoJSON.FeatureCollection>;
+}
+
+async function imageObjectUrlFetcher(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch satellite imagery: ${response.status}`);
+  return URL.createObjectURL(await response.blob());
 }
 
 function modelColor(props: GeoJSON.GeoJsonProperties): string {
@@ -167,12 +178,19 @@ export default function StormMap({
 }: StormMapProps) {
   const { data: windField, error: windFieldError } = useSWR<GeoJSON.FeatureCollection>(
     layers.windField ? geo.windFieldUrl ?? null : null,
-    geoJsonFetcher
+    geoJsonFetcher,
+    VERSIONED_DATA_OPTIONS
   );
   const selectedWindProbUrl = geo.windProbUrls[windThreshold] ?? null;
   const { data: windProb, error: windProbError } = useSWR<GeoJSON.FeatureCollection>(
     layers.windProb ? selectedWindProbUrl : null,
-    geoJsonFetcher
+    geoJsonFetcher,
+    VERSIONED_DATA_OPTIONS
+  );
+  const { data: satelliteObjectUrl } = useSWR<string>(
+    layers.satellite ? geo.satellite?.url ?? null : null,
+    imageObjectUrlFetcher,
+    VERSIONED_DATA_OPTIONS
   );
   const availableWindThresholds = WIND_THRESHOLDS.filter((threshold) => Boolean(geo.windProbUrls[threshold]));
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -325,11 +343,20 @@ export default function StormMap({
   // --- archived, time-matched GOES image reprojected to Web Mercator ---
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !loaded || !layers.satellite || !geo.satellite) return;
+    if (!map || !loaded) return;
+    if (!layers.satellite || !geo.satellite || !satelliteObjectUrl) {
+      map.setLayoutProperty(LAYER_IDS.satellite, "visibility", "none");
+      return;
+    }
+
+    // ImageSource defers loading while its only layer is hidden. Make the
+    // layer visible before swapping the placeholder so the archived image
+    // starts downloading immediately when the user enables it.
+    map.setLayoutProperty(LAYER_IDS.satellite, "visibility", "visible");
     const [[west, south], [east, north]] = geo.satellite.bounds;
     const src = map.getSource(SOURCE_IDS.satellite) as ImageSource | undefined;
     src?.updateImage({
-      url: geo.satellite.url,
+      url: satelliteObjectUrl,
       coordinates: [
         [west, north],
         [east, north],
@@ -337,7 +364,7 @@ export default function StormMap({
         [west, south],
       ],
     });
-  }, [geo.satellite, layers.satellite, loaded]);
+  }, [geo.satellite, layers.satellite, loaded, satelliteObjectUrl]);
 
   // --- watch/warning lines (fixed colors, independent of mode) ---
   useEffect(() => {
@@ -425,16 +452,6 @@ export default function StormMap({
     map.setLayoutProperty(LAYER_IDS.historyLine, "visibility", visibility);
     map.setLayoutProperty(LAYER_IDS.historyPoints, "visibility", visibility);
   }, [geo.history, layers.history, loaded]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !loaded) return;
-    map.setLayoutProperty(
-      LAYER_IDS.satellite,
-      "visibility",
-      layers.satellite && geo.satellite ? "visible" : "none"
-    );
-  }, [geo.satellite, layers.satellite, loaded]);
 
   useEffect(() => {
     const map = mapRef.current;

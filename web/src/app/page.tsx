@@ -16,12 +16,16 @@ import { useDashboard } from "@/lib/useDashboard";
 
 const StormMap = dynamic(() => import("@/components/StormMap"), {
   ssr: false,
-  loading: () => (
+  loading: MapLoading,
+});
+
+function MapLoading() {
+  return (
     <div className="gw-map-loading" role="status">
       Loading map…
     </div>
-  ),
-});
+  );
+}
 
 export default function Home() {
   const dashboard = useDashboard();
@@ -31,7 +35,21 @@ export default function Home() {
   const [layers, setLayers] = useState(DEMO_LAYER_STATE);
   const [windThreshold, setWindThreshold] = useState<WindThreshold>(39);
   const [discussionOpen, setDiscussionOpen] = useState(false);
+  const [loadMap, setLoadMap] = useState(false);
   const initializedLayerModeRef = useRef<boolean | null>(null);
+
+  // Keep MapLibre and third-party basemap tiles off the critical path. The
+  // rail can report live conditions as soon as the manifest resolves; the
+  // interactive map follows during the browser's next idle window.
+  useEffect(() => {
+    if (dashboard.status !== "ready" || loadMap) return;
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(() => setLoadMap(true), { timeout: 800 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(() => setLoadMap(true), 150);
+    return () => clearTimeout(id);
+  }, [dashboard.status, loadMap]);
 
   useEffect(() => {
     if (dashboard.status !== "ready" || initializedLayerModeRef.current === dashboard.demo) return;
@@ -116,7 +134,7 @@ export default function Home() {
           publicAdvisoryText={dashboard.textProducts?.publicAdvisory?.text}
         />
         <div className="mapcol">
-          <StormMap
+          {loadMap ? <StormMap
             geo={dashboard.geo}
             mode={dashboard.mode}
             visibleModels={visibleModels}
@@ -138,7 +156,7 @@ export default function Home() {
               if (open && layers.graphs) setLayers((state) => toggleLayer(state, "graphs"));
               setDiscussionOpen(open);
             }}
-          />
+          /> : <MapLoading />}
           {dashboard.demo && <div className="simtag">{dashboard.demoTag}</div>}
           {hasGraphs && layers.graphs && dashboard.storm && dashboard.intensity && (
             <IntensityPanel

@@ -12,6 +12,7 @@ Run from ``ingest/`` with ``python scripts/build_ida_sample.py``.
 from __future__ import annotations
 
 import gzip
+import argparse
 import json
 import shutil
 import subprocess
@@ -87,6 +88,7 @@ ADVISORIES = [
 TIMEOUT_S = 60
 RETRY_BACKOFF_S = 5
 MAX_ATTEMPTS = 3
+WINDPROB_SIMPLIFY_DEGREES = 0.025
 
 
 def _get(url: str) -> requests.Response:
@@ -156,6 +158,70 @@ def _polygon_center(polygon: list) -> tuple[float, float]:
     )
 
 
+def _point_segment_distance_sq(point: list, start: list, end: list) -> float:
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    if dx == 0 and dy == 0:
+        return (point[0] - start[0]) ** 2 + (point[1] - start[1]) ** 2
+    fraction = max(
+        0.0,
+        min(1.0, ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / (dx * dx + dy * dy)),
+    )
+    nearest_x = start[0] + fraction * dx
+    nearest_y = start[1] + fraction * dy
+    return (point[0] - nearest_x) ** 2 + (point[1] - nearest_y) ** 2
+
+
+def _rdp(points: list, tolerance: float) -> list:
+    if len(points) <= 2:
+        return points
+    max_distance_sq = -1.0
+    split_index = 0
+    for index, point in enumerate(points[1:-1], start=1):
+        distance_sq = _point_segment_distance_sq(point, points[0], points[-1])
+        if distance_sq > max_distance_sq:
+            max_distance_sq = distance_sq
+            split_index = index
+    if max_distance_sq <= tolerance * tolerance:
+        return [points[0], points[-1]]
+    left = _rdp(points[: split_index + 1], tolerance)
+    right = _rdp(points[split_index:], tolerance)
+    return left[:-1] + right
+
+
+def _simplify_ring(ring: list, tolerance: float = WINDPROB_SIMPLIFY_DEGREES) -> list:
+    """Simplify a closed probability contour while preserving a valid ring."""
+    if len(ring) <= 5:
+        return ring
+    points = ring[:-1] if ring[0] == ring[-1] else ring[:]
+    anchor = min(range(len(points)), key=lambda index: (points[index][0], points[index][1]))
+    ordered = points[anchor:] + points[:anchor]
+    opposite = max(
+        range(1, len(ordered)),
+        key=lambda index: (ordered[index][0] - ordered[0][0]) ** 2
+        + (ordered[index][1] - ordered[0][1]) ** 2,
+    )
+    first_arc = _rdp(ordered[: opposite + 1], tolerance)
+    second_arc = _rdp(ordered[opposite:] + [ordered[0]], tolerance)
+    simplified = first_arc[:-1] + second_arc
+    if simplified[0] != simplified[-1]:
+        simplified.append(simplified[0])
+    return simplified if len(simplified) >= 4 else ring
+
+
+def _simplify_windprob(feature_collection: dict) -> dict:
+    features = []
+    for feature in feature_collection.get("features", []):
+        geometry = feature.get("geometry")
+        if not geometry or geometry.get("type") not in {"Polygon", "MultiPolygon"}:
+            features.append(feature)
+            continue
+        polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
+        simplified = [[_simplify_ring(ring) for ring in polygon] for polygon in polygons]
+        next_coordinates = simplified if geometry["type"] == "MultiPolygon" else simplified[0]
+        features.append({**feature, "geometry": {**geometry, "coordinates": next_coordinates}})
+    return {**feature_collection, "features": features}
+
+
 def _filter_wsp_for_ida(feature_collection: dict) -> dict:
     """Keep Ida's component from basin-wide WSP probability polygons.
 
@@ -176,7 +242,7 @@ def _filter_wsp_for_ida(feature_collection: dict) -> dict:
             else [geometry["coordinates"]]
         )
         ida_polygons = [
-            polygon
+            [_simplify_ring(ring) for ring in polygon]
             for polygon in polygons
             if (center := _polygon_center(polygon))
             and west <= center[0] <= east
@@ -191,6 +257,14 @@ def _filter_wsp_for_ida(feature_collection: dict) -> dict:
             }
         )
     return {"type": "FeatureCollection", "features": features}
+
+
+def simplify_existing() -> None:
+    paths = sorted(OUT_DIR.rglob("windprob*.geojson"))
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        _write_json(path, _simplify_windprob(data))
+    print(f"gulf-watch: simplified {len(paths)} existing Ida wind-probability files")
 
 
 def _build_satellite(advisory: dict, output_dir: Path) -> str:
@@ -377,4 +451,7 @@ def build() -> None:
 
 
 if __name__ == "__main__":
-    build()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--simplify-existing", action="store_true")
+    args = parser.parse_args()
+    simplify_existing() if args.simplify_existing else build()
