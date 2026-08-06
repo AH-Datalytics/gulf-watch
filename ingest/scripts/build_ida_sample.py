@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from urllib.parse import urlencode
 
 import requests
 
@@ -34,8 +35,20 @@ BEST_TRACK_ZIP_URL = "https://www.nhc.noaa.gov/gis/best_track/al092021_best_trac
 OUT_DIR = Path(__file__).resolve().parent.parent.parent / "web" / "public" / "demo" / "ida"
 GOES_BASE = "https://noaa-goes16.s3.amazonaws.com"
 SATELLITE_BOUNDS = [[-95.5, 19], [-80, 32]]
+RADAR_BOUNDS = [[-98, 18], [-80, 32]]
+RADAR_WMS_URL = "https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi"
+RADAR_WEB_MERCATOR_BBOX = "-10909310.0977,2037548.5448,-8905559.2635,3763310.6271"
 
 ADVISORIES = [
+    {
+        "num": "5",
+        "archive_num": "005",
+        "issued": "2021-08-27T15:00:00Z",
+        "next": "2021-08-27T21:00:00Z",
+        "cycle": "2021082712",
+        "satellite_issued": "2021-08-27T15:01:17Z",
+        "satellite_key": "ABI-L2-MCMIPC/2021/239/15/OR_ABI-L2-MCMIPC-M6_G16_s20212391501170_e20212391503543_c20212391504039.nc",
+    },
     {
         "num": "6",
         "archive_num": "006",
@@ -83,6 +96,54 @@ ADVISORIES = [
         "satellite_issued": "2021-08-28T21:01:17Z",
         "satellite_key": "ABI-L2-MCMIPC/2021/240/21/OR_ABI-L2-MCMIPC-M6_G16_s20212402101171_e20212402103555_c20212402104046.nc",
     },
+    {
+        "num": "11",
+        "archive_num": "011",
+        "issued": "2021-08-29T03:00:00Z",
+        "next": "2021-08-29T09:00:00Z",
+        "cycle": "2021082900",
+        "satellite_issued": "2021-08-29T03:01:17Z",
+        "satellite_mode": "infrared",
+        "satellite_key": "ABI-L2-MCMIPC/2021/241/03/OR_ABI-L2-MCMIPC-M6_G16_s20212410301171_e20212410303543_c20212410304047.nc",
+    },
+    {
+        "num": "12",
+        "archive_num": "012",
+        "issued": "2021-08-29T09:00:00Z",
+        "next": "2021-08-29T15:00:00Z",
+        "cycle": "2021082906",
+        "satellite_issued": "2021-08-29T09:01:17Z",
+        "satellite_mode": "infrared",
+        "satellite_key": "ABI-L2-MCMIPC/2021/241/09/OR_ABI-L2-MCMIPC-M6_G16_s20212410901171_e20212410903549_c20212410904047.nc",
+    },
+    {
+        "num": "13",
+        "archive_num": "013",
+        "issued": "2021-08-29T15:00:00Z",
+        "next": "2021-08-29T21:00:00Z",
+        "cycle": "2021082912",
+        "satellite_issued": "2021-08-29T15:01:17Z",
+        "satellite_key": "ABI-L2-MCMIPC/2021/241/15/OR_ABI-L2-MCMIPC-M6_G16_s20212411501171_e20212411503549_c20212411504044.nc",
+    },
+    {
+        "num": "14",
+        "archive_num": "014",
+        "issued": "2021-08-29T21:00:00Z",
+        "next": "2021-08-30T03:00:00Z",
+        "cycle": "2021082918",
+        "satellite_issued": "2021-08-29T21:01:17Z",
+        "satellite_key": "ABI-L2-MCMIPC/2021/241/21/OR_ABI-L2-MCMIPC-M6_G16_s20212412101171_e20212412103550_c20212412104047.nc",
+    },
+    {
+        "num": "15",
+        "archive_num": "015",
+        "issued": "2021-08-30T03:00:00Z",
+        "next": "2021-08-30T09:00:00Z",
+        "cycle": "2021083000",
+        "satellite_issued": "2021-08-30T03:01:17Z",
+        "satellite_mode": "infrared",
+        "satellite_key": "ABI-L2-MCMIPC/2021/242/03/OR_ABI-L2-MCMIPC-M6_G16_s20212420301171_e20212420303549_c20212420304046.nc",
+    },
 ]
 
 TIMEOUT_S = 60
@@ -118,7 +179,7 @@ def _current_point(track_fc: dict, advisory_num: str) -> dict:
             feature.get("geometry", {}).get("type") == "Point"
             and feature.get("properties", {}).get("TAU") == 0
         ):
-            return feature["properties"]
+            return feature
     raise ValueError(f"no tau=0 forecast point for advisory {advisory_num}")
 
 
@@ -127,7 +188,7 @@ def _history(best_track: dict, cutoff_cycle: str, lon: float, lat: float) -> dic
         feature
         for feature in best_track["features"]
         if feature["geometry"]["type"] == "Point"
-        and int(feature.get("properties", {}).get("DTG", 0)) <= int(cutoff_cycle)
+        and int(feature.get("properties", {}).get("DTG", 0)) < int(cutoff_cycle)
     ]
     coordinates = [feature["geometry"]["coordinates"] for feature in points]
     current_coordinate = [lon, lat]
@@ -207,6 +268,62 @@ def _simplify_ring(ring: list, tolerance: float = WINDPROB_SIMPLIFY_DEGREES) -> 
         simplified.append(simplified[0])
     return simplified if len(simplified) >= 4 else ring
 
+def _clip_ring(ring: list, west: float, east: float, south: float, north: float) -> list:
+    """Clip one closed lon/lat ring to a rectangular display domain."""
+    if not ring:
+        return []
+    points = [list(point[:2]) for point in (ring[:-1] if ring[0] == ring[-1] else ring)]
+
+    def clip(points: list, inside, intersect) -> list:
+        if not points:
+            return []
+        output = []
+        previous = points[-1]
+        previous_inside = inside(previous)
+        for current in points:
+            current_inside = inside(current)
+            if current_inside:
+                if not previous_inside:
+                    output.append(intersect(previous, current))
+                output.append(current)
+            elif previous_inside:
+                output.append(intersect(previous, current))
+            previous = current
+            previous_inside = current_inside
+        return output
+
+    def vertical(first: list, second: list, longitude: float) -> list:
+        x1, y1 = first
+        x2, y2 = second
+        if x1 == x2:
+            return [longitude, y1]
+        ratio = (longitude - x1) / (x2 - x1)
+        return [longitude, y1 + ratio * (y2 - y1)]
+
+    def horizontal(first: list, second: list, latitude: float) -> list:
+        x1, y1 = first
+        x2, y2 = second
+        if y1 == y2:
+            return [x1, latitude]
+        ratio = (latitude - y1) / (y2 - y1)
+        return [x1 + ratio * (x2 - x1), latitude]
+
+    points = clip(points, lambda point: point[0] >= west, lambda a, b: vertical(a, b, west))
+    points = clip(points, lambda point: point[0] <= east, lambda a, b: vertical(a, b, east))
+    points = clip(points, lambda point: point[1] >= south, lambda a, b: horizontal(a, b, south))
+    points = clip(points, lambda point: point[1] <= north, lambda a, b: horizontal(a, b, north))
+    if not points:
+        return []
+    deduped = []
+    for point in points:
+        if not deduped or point != deduped[-1]:
+            deduped.append(point)
+    if len(deduped) < 3:
+        return []
+    if deduped[0] != deduped[-1]:
+        deduped.append(deduped[0])
+    return deduped
+
 
 def _simplify_windprob(feature_collection: dict) -> dict:
     features = []
@@ -241,13 +358,15 @@ def _filter_wsp_for_ida(feature_collection: dict) -> dict:
             if geometry["type"] == "MultiPolygon"
             else [geometry["coordinates"]]
         )
-        ida_polygons = [
-            [_simplify_ring(ring) for ring in polygon]
-            for polygon in polygons
-            if (center := _polygon_center(polygon))
-            and west <= center[0] <= east
-            and south <= center[1] <= north
-        ]
+        ida_polygons = []
+        for polygon in polygons:
+            center = _polygon_center(polygon)
+            if not center or not (west <= center[0] <= east and south <= center[1] <= north):
+                continue
+            rings = [_clip_ring(_simplify_ring(ring), west, east, south, north) for ring in polygon]
+            rings = [ring for ring in rings if ring]
+            if rings:
+                ida_polygons.append(rings)
         if not ida_polygons:
             continue
         features.append(
@@ -300,6 +419,32 @@ def _build_satellite(advisory: dict, output_dir: Path) -> str:
         raw_path.unlink(missing_ok=True)
     return filename
 
+def _build_radar(advisory: dict, output_dir: Path) -> str:
+    """Download a projection-correct Gulf crop of IEM's archived NEXRAD mosaic."""
+    issued_slug = advisory["issued"].replace("-", "").replace(":", "")
+    filename = f"radar-{issued_slug[0:8]}-{issued_slug[9:13].lower()}z.png"
+    target = output_dir / filename
+    if target.exists():
+        return filename
+
+    params = {
+        "SERVICE": "WMS",
+        "REQUEST": "GetMap",
+        "VERSION": "1.3.0",
+        "LAYERS": "nexrad-n0q-wmst",
+        "STYLES": "",
+        "CRS": "EPSG:3857",
+        "BBOX": RADAR_WEB_MERCATOR_BBOX,
+        "WIDTH": "1200",
+        "HEIGHT": "1034",
+        "FORMAT": "image/png",
+        "TRANSPARENT": "true",
+        "TIME": advisory["issued"],
+    }
+    print(f"  NEXRAD: downloading historical mosaic at {advisory['issued']}")
+    target.write_bytes(_get(f"{RADAR_WMS_URL}?{urlencode(params)}").content)
+    return filename
+
 
 def _build_advisory(advisory: dict, adeck_full: str, best_track: dict) -> dict:
     num = advisory["num"]
@@ -349,12 +494,16 @@ def _build_advisory(advisory: dict, adeck_full: str, best_track: dict) -> dict:
         for threshold in (34, 50, 64)
     }
 
-    current = _current_point(track_fc, num)
-    lat, lon = float(current["LAT"]), float(current["LON"])
+    current_feature = _current_point(track_fc, num)
+    current = current_feature["properties"]
+    lon, lat = map(float, current_feature["geometry"]["coordinates"])
+    valid_day, valid_time = str(current["VALIDTIME"]).split("/")
+    history_cutoff = f"{cycle[:6]}{valid_day}{valid_time[:2]}"
     vmax_kt = int(current["MAXWIND"])
     in_gulf = nhc.in_gulf_box(lat, lon)
-    history_fc = _history(best_track, cycle, lon, lat)
+    history_fc = _history(best_track, history_cutoff, lon, lat)
     satellite_file = _build_satellite(advisory, output_dir)
+    radar_file = _build_radar(advisory, output_dir)
 
     files = {
         "cone": "cone.geojson",
@@ -410,6 +559,13 @@ def _build_advisory(advisory: dict, adeck_full: str, best_track: dict) -> dict:
             "sourceUrl": f"{GOES_BASE}/index.html",
             "bounds": SATELLITE_BOUNDS,
         },
+        "radar": {
+            "image": f"{prefix}/{radar_file}",
+            "issued": advisory["issued"],
+            "sourceLabel": "IEM / NEXRAD",
+            "sourceUrl": "https://mesonet.agron.iastate.edu/docs/nexrad_composites/",
+            "bounds": RADAR_BOUNDS,
+        },
     }
 
 
@@ -440,8 +596,8 @@ def build() -> None:
         "errors": [],
         "_demo": (
             "HISTORICAL SAMPLE -- HURRICANE IDA. Real archived NHC/ATCF data "
-            "for advisories 6-10, with cycle-matched GIS, guidance, text, wind, "
-            "history, and GOES-16 products."
+            "for advisories 5-15, with cycle-matched GIS, guidance, text, wind, "
+            "history, GOES-16, and NEXRAD products."
         ),
     }
     _write_json(OUT_DIR / "manifest.json", manifest)

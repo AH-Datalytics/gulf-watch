@@ -30,10 +30,9 @@ export function AdvisoryPlayback({
     const next = advisories[currentIndex + 1];
     if (!next) return;
     const paths = [
-      next.files.cone,
-      next.files.track,
-      ...(next.files.history ? [next.files.history] : []),
-      next.files.wwlines,
+      ...Object.values(next.files),
+      ...(next.satellite ? [next.satellite.image] : []),
+      ...(next.radar ? [next.radar.image] : []),
     ];
     for (const path of paths) {
       void fetch(`/demo/${path}`, { cache: "force-cache" }).catch(() => undefined);
@@ -92,20 +91,22 @@ export function AdvisoryPlayback({
         >
           <span aria-hidden="true">{playing ? "Ⅱ" : "▶"}</span>
         </button>
-        <div className="advisory-ticks" role="group" aria-label="Choose an advisory">
-          {advisories.map((advisory, index) => (
-            <button
-              type="button"
-              key={advisory.advisoryNum}
-              className={index === currentIndex ? "active" : ""}
-              onClick={() => choose(index)}
-              aria-label={`Advisory ${advisory.advisoryNum}, ${cdtDateTime(advisory.advisoryTime)}`}
-              aria-current={index === currentIndex ? "step" : undefined}
-            >
-              <i aria-hidden="true" />
-              <span>{advisory.advisoryNum}</span>
-            </button>
-          ))}
+        <div className="advisory-timeline">
+          <input
+            type="range"
+            min={0}
+            max={lastIndex}
+            step={1}
+            value={currentIndex}
+            onChange={(event) => choose(Number(event.target.value))}
+            aria-label="Choose an advisory"
+            aria-valuetext={`Advisory ${current.advisoryNum}, ${cdtDateTime(current.advisoryTime)}`}
+          />
+          <div className="advisory-range-labels" aria-hidden="true">
+            <span>Adv {advisories[0].advisoryNum}</span>
+            <b>{currentIndex + 1} of {advisories.length}</b>
+            <span>Adv {advisories[lastIndex].advisoryNum}</span>
+          </div>
         </div>
         <button
           type="button"

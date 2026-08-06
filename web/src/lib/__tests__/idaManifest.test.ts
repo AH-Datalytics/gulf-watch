@@ -38,9 +38,9 @@ describe("Ida flagship sample manifest", () => {
     const ida = manifest.storms[0];
     expect(ida.id).toBe("al092021");
     expect(ida.name).toBe("Ida");
-    expect(ida.advisoryNum).toBe("6");
+    expect(ida.advisoryNum).toBe("5");
     expect(ida.inGulfBox).toBe(true);
-    expect(ida.advisories?.map((frame) => frame.advisoryNum)).toEqual(["6", "7", "8", "9", "10"]);
+    expect(ida.advisories?.map((frame) => frame.advisoryNum)).toEqual(["5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]);
   });
 
   it("every storm file path is rewritten under ida/, relative to DEMO_BASE — same contract as bertha", () => {
@@ -56,24 +56,34 @@ describe("Ida flagship sample manifest", () => {
   });
 
   it("carries a real windprob (34kt WSP shapefile) file — the shaded wind-probability layer's data source", () => {
-    expect(manifest.storms[0].files.windprob).toContain("advisories/006/windprob.geojson");
-    expect(manifest.storms[0].files.windprob50).toContain("advisories/006/windprob-58mph.geojson");
-    expect(manifest.storms[0].files.windprob64).toContain("advisories/006/windprob-74mph.geojson");
+    expect(manifest.storms[0].files.windprob).toContain("advisories/005/windprob.geojson");
+    expect(manifest.storms[0].files.windprob50).toContain("advisories/005/windprob-58mph.geojson");
+    expect(manifest.storms[0].files.windprob64).toContain("advisories/005/windprob-74mph.geojson");
   });
 
   it("carries the official advisory-time initial wind field", () => {
-    expect(manifest.storms[0].files.windfield).toContain("advisories/006/windfield.geojson");
+    expect(manifest.storms[0].files.windfield).toContain("advisories/005/windfield.geojson");
   });
 
   it("carries observed history and a time-matched GOES overlay", () => {
     const ida = manifest.storms[0];
-    expect(ida.files.history).toContain("advisories/006/history.geojson");
-    expect(ida.satellite?.issued).toBe("2021-08-27T21:01:17Z");
+    expect(ida.files.history).toContain("advisories/005/history.geojson");
+    expect(ida.satellite?.issued).toBe("2021-08-27T15:01:17Z");
     expect(ida.satellite?.sourceLabel).toContain("GOES-16");
     expect(
       existsSync(join(__dirname, "..", "..", "..", "public", "demo", ida.satellite!.image))
     ).toBe(true);
     expect(ida.advisories?.every((frame) => frame.files.history && frame.satellite)).toBe(true);
+  });
+
+  it("carries an advisory-matched archived NEXRAD image for every frame", () => {
+    for (const frame of manifest.storms[0].advisories ?? []) {
+      expect(frame.radar?.issued).toBe(frame.advisoryTime);
+      expect(frame.radar?.sourceLabel).toContain("NEXRAD");
+      expect(
+        frame.radar && existsSync(join(demoRoot, frame.radar.image))
+      ).toBe(true);
+    }
   });
 
   it("carries no fabricated rain/QPF product — the addendum explicitly allows shipping without one", () => {

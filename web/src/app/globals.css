@@ -1199,8 +1199,8 @@ a {
   left: 50%;
   bottom: 18px;
   z-index: 6;
-  width: min(580px, calc(100% - 390px));
-  min-width: 450px;
+  width: min(680px, calc(100% - 390px));
+  min-width: 520px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1216,7 +1216,7 @@ a {
 }
 
 .advisory-playback-status {
-  min-width: 188px;
+  min-width: 168px;
   display: grid;
   gap: 1px;
   line-height: 1.2;
@@ -1246,9 +1246,41 @@ a {
   gap: 7px;
 }
 
+.advisory-timeline {
+  min-width: 240px;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.advisory-timeline input[type="range"] {
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--ahd-blue);
+}
+
+.advisory-range-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #647579;
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.advisory-range-labels b {
+  color: var(--ahd-blue);
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .advisory-step,
-.advisory-play,
-.advisory-ticks button {
+.advisory-play {
   font: inherit;
   cursor: pointer;
 }
@@ -1329,7 +1361,7 @@ a {
 
 .advisory-step:focus-visible,
 .advisory-play:focus-visible,
-.advisory-ticks button:focus-visible {
+.advisory-timeline input:focus-visible {
   outline: 3px solid rgba(8, 145, 212, 0.35);
   outline-offset: 2px;
 }
@@ -1346,11 +1378,14 @@ a {
     transform: none;
   }
 
-  .advisory-playback-status { min-width: 112px; }
+  .advisory-playback-status { min-width: 100px; }
   .advisory-playback-status > span { display: none; }
   .advisory-playback-status b { font-size: 13px; }
   .advisory-playback-status time { font-size: 8.5px; }
   .advisory-playback-controls { gap: 3px; }
+  .advisory-timeline { min-width: 0; }
+  .advisory-range-labels { justify-content: center; }
+  .advisory-range-labels span { display: none; }
   .advisory-step { width: 18px; }
   .advisory-play { width: 31px; height: 31px; }
 }
@@ -1610,6 +1645,27 @@ a {
   font-size: 10px;
   line-height: 1.35;
 }
+
+.radar-option-note {
+  margin: -3px 0 2px 24px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.radar-option-note.stale { color: #9b3c2f; }
+
+.radar-freshness-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: #3b8f63;
+  vertical-align: 1px;
+}
+
+.radar-option-note.stale .radar-freshness-dot { background: #b34d3c; }
 
 .layer-row.disabled {
   color: var(--ink-dim);

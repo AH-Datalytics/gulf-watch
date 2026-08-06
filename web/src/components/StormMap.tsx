@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
-import { GeoJSONSource, ImageSource, Map as MapLibreMap, Marker, setWorkerUrl } from "maplibre-gl";
+import { GeoJSONSource, ImageSource, Map as MapLibreMap, Marker, RasterTileSource, setWorkerUrl } from "maplibre-gl";
 import type { FilterSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LayerKey, LayerState, WindThreshold } from "@/lib/layers";
@@ -24,6 +24,7 @@ import {
   outlookColor,
   polygonLabelPoint,
   readModeColors,
+  RADAR_TILE_URL,
   resolveGroup,
   SOURCE_IDS,
   stormSymbolKind,
@@ -34,6 +35,7 @@ import {
 } from "@/lib/mapStyle";
 import { DEFAULT_MODEL_COLOR, ENSEMBLE_COLOR, MODEL_COLORS } from "@/lib/modelColors";
 import { cdtDateTime } from "@/lib/format";
+import { radarValidTime, RADAR_METADATA_URL } from "@/lib/radar";
 
 // maplibre-gl resolves its worker script relative to its own module's
 // `import.meta.url` at runtime (see web_worker.ts's defaultWorkerUrl()).
@@ -65,6 +67,13 @@ export interface StormMapProps {
      *  one (most, today — only the Ida historical sample carries it). */
     windProbUrls: Partial<Record<WindThreshold, string>>;
     satellite?: {
+      url: string;
+      issued: string;
+      sourceLabel: string;
+      sourceUrl: string;
+      bounds: [[number, number], [number, number]];
+    };
+    radar?: {
       url: string;
       issued: string;
       sourceLabel: string;
@@ -119,6 +128,12 @@ async function imageObjectUrlFetcher(url: string): Promise<string> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch satellite imagery: ${response.status}`);
   return URL.createObjectURL(await response.blob());
+}
+
+async function radarMetadataFetcher(url: string): Promise<string> {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`Failed to fetch radar metadata: ${response.status}`);
+  return radarValidTime(await response.json());
 }
 
 function modelColor(props: GeoJSON.GeoJsonProperties): string {
@@ -192,6 +207,24 @@ export default function StormMap({
     imageObjectUrlFetcher,
     VERSIONED_DATA_OPTIONS
   );
+  const { data: radarObjectUrl, error: archivedRadarError, isLoading: archivedRadarLoading } = useSWR<string>(
+    geo.radar?.url ?? null,
+    imageObjectUrlFetcher,
+    VERSIONED_DATA_OPTIONS
+  );
+  const {
+    data: liveRadarValid,
+    error: liveRadarError,
+    isLoading: liveRadarLoading,
+  } = useSWR<string>(layers.radar && !geo.radar ? RADAR_METADATA_URL : null, radarMetadataFetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+  });
+  const radarValid = geo.radar?.issued ?? liveRadarValid;
+  const radarError = geo.radar ? archivedRadarError : liveRadarError;
+  const radarLoading = geo.radar ? archivedRadarLoading : liveRadarLoading;
+
   const availableWindThresholds = WIND_THRESHOLDS.filter((threshold) => Boolean(geo.windProbUrls[threshold]));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -366,6 +399,43 @@ export default function StormMap({
     });
   }, [geo.satellite, layers.satellite, loaded, satelliteObjectUrl]);
 
+  // Historical replays use a committed, advisory-matched radar crop. Keep it
+  // as an image source so playback is fast and independent of IEM availability.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded) return;
+    const existing = map.getSource(SOURCE_IDS.radarArchive) as ImageSource | undefined;
+    if (!geo.radar || !radarObjectUrl) {
+      if (map.getLayer(LAYER_IDS.radarArchive)) map.removeLayer(LAYER_IDS.radarArchive);
+      if (existing) map.removeSource(SOURCE_IDS.radarArchive);
+      return;
+    }
+    const [[west, south], [east, north]] = geo.radar.bounds;
+    const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+      [west, north],
+      [east, north],
+      [east, south],
+      [west, south],
+    ];
+    if (existing) {
+      existing.updateImage({ url: radarObjectUrl, coordinates });
+    } else {
+      map.addSource(SOURCE_IDS.radarArchive, {
+        type: "image",
+        url: radarObjectUrl,
+        coordinates,
+      });
+      map.addLayer({
+        id: LAYER_IDS.radarArchive,
+        type: "raster",
+        source: SOURCE_IDS.radarArchive,
+        layout: { visibility: layers.radar ? "visible" : "none" },
+        paint: { "raster-opacity": 0.75 },
+      });
+    }
+    map.setLayoutProperty(LAYER_IDS.radarArchive, "visibility", layers.radar ? "visible" : "none");
+  }, [geo.radar, layers.radar, loaded, radarObjectUrl]);
+
   // --- watch/warning lines (fixed colors, independent of mode) ---
   useEffect(() => {
     const map = mapRef.current;
@@ -465,8 +535,19 @@ export default function StormMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loaded) return;
-    map.setLayoutProperty(LAYER_IDS.radar, "visibility", layers.radar ? "visible" : "none");
-  }, [layers.radar, loaded]);
+    map.setLayoutProperty(LAYER_IDS.radar, "visibility", layers.radar && !geo.radar ? "visible" : "none");
+  }, [geo.radar, layers.radar, loaded]);
+
+  // IEM's un-timestamped WMS URL means "current", but MapLibre otherwise
+  // keeps tiles it has already loaded. Change the source URL when IEM's
+  // metadata advances so an open radar layer rolls over to the new frame.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loaded || !liveRadarValid) return;
+    const source = map.getSource(SOURCE_IDS.radar) as RasterTileSource | undefined;
+    source?.setTiles([`${RADAR_TILE_URL}&radarValid=${encodeURIComponent(liveRadarValid)}`]);
+  }, [loaded, liveRadarValid]);
+
 
   useEffect(() => {
     const map = mapRef.current;
@@ -519,6 +600,10 @@ export default function StormMap({
           hasWindField={Boolean(geo.windFieldUrl)}
           windFieldLoading={layers.windField && Boolean(geo.windFieldUrl) && !windField && !windFieldError}
           windFieldError={Boolean(windFieldError)}
+          radarValid={radarValid}
+          radarLoading={radarLoading}
+          radarError={Boolean(radarError)}
+          radarHistorical={Boolean(geo.radar)}
           hasDiscussion={Boolean(discussion)}
           discussionOpen={discussionOpen}
           onDiscussionToggle={() => onDiscussionOpenChange(!discussionOpen)}

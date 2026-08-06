@@ -43,6 +43,14 @@ export interface StormEntry {
     sourceUrl: string;
     bounds: [[number, number], [number, number]];
   };
+  /** Archived NEXRAD mosaic cropped to the Gulf for historical replay. */
+  radar?: {
+    image: string;
+    issued: string;
+    sourceLabel: string;
+    sourceUrl: string;
+    bounds: [[number, number], [number, number]];
+  };
   /** Optional historical snapshots for in-place advisory replay. Live
    * manifests omit this and continue using the top-level storm fields. */
   advisories?: StormEntry[];

@@ -101,6 +101,8 @@ export function cdtTickLabel(iso: string): string {
 /** Human label for a StormEntry's NHC classification code (mockup's "Hurricane"/"Tropical Storm" prefix). */
 export function stormTypeLabel(classification: string): string {
   switch (classification) {
+    case "MH":
+      return "Major Hurricane";
     case "HU":
       return "Hurricane";
     case "TS":

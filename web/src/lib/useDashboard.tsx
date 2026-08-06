@@ -255,6 +255,13 @@ export interface DashboardData {
       sourceUrl: string;
       bounds: [[number, number], [number, number]];
     };
+    radar?: {
+      url: string;
+      issued: string;
+      sourceLabel: string;
+      sourceUrl: string;
+      bounds: [[number, number], [number, number]];
+    };
   };
   intensity: IntensitySeries | null;
   outlookText: { issued: string; text: string } | null;
@@ -368,6 +375,9 @@ function useDashboardSource(): DashboardData {
   const satellite = storm?.satellite
     ? { ...storm.satellite, url: stormFileUrl(storm.satellite.image) }
     : undefined;
+  const radar = storm?.radar
+    ? { ...storm.radar, url: stormFileUrl(storm.radar.image) }
+    : undefined;
   const outlookGeoUrl = manifest?.mode === "quiet"
     ? versionedDataUrl(base, manifest.outlook.geojson, manifest.outlook.issued)
     : null;
@@ -462,6 +472,7 @@ function useDashboardSource(): DashboardData {
       windFieldUrl,
       windProbUrls,
       satellite,
+      radar,
     },
     intensity: intensity ?? null,
     outlookText: outlookText ?? null,

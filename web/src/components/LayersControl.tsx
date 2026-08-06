@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LayerKey, LayerState, WindThreshold } from "@/lib/layers";
 import { WIND_FIELD_BANDS, WIND_PROB_BANDS } from "@/lib/mapStyle";
+import { cdtDateTime } from "@/lib/format";
+import { radarAgeMinutes, RADAR_STALE_AFTER_MINUTES } from "@/lib/radar";
 import { ModelLegend } from "./ModelLegend";
 
 export interface LayersControlProps {
@@ -24,6 +26,10 @@ export interface LayersControlProps {
   windProbError?: boolean;
   windFieldLoading?: boolean;
   windFieldError?: boolean;
+  radarValid?: string;
+  radarLoading?: boolean;
+  radarError?: boolean;
+  radarHistorical?: boolean;
   hasDiscussion: boolean;
   discussionOpen: boolean;
   onDiscussionToggle: () => void;
@@ -56,6 +62,10 @@ export function LayersControl({
   windProbError,
   windFieldLoading,
   windFieldError,
+  radarValid,
+  radarLoading,
+  radarError,
+  radarHistorical,
   hasDiscussion,
   discussionOpen,
   onDiscussionToggle,
@@ -153,6 +163,9 @@ export function LayersControl({
               <input type="checkbox" checked={layers.radar} onChange={() => onToggle("radar")} />
               Radar
             </label>
+            {layers.radar && (
+              <RadarFreshness valid={radarValid} loading={radarLoading} error={radarError} historical={radarHistorical} />
+            )}
           </section>
           <section className="map-popout-actions" aria-labelledby="forecast-details-heading">
             <div className="map-options-section-title" id="forecast-details-heading">Forecast details</div>
@@ -179,6 +192,39 @@ export function LayersControl({
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+function RadarFreshness({ valid, loading, error, historical }: { valid?: string; loading?: boolean; error?: boolean; historical?: boolean }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  if (historical) {
+    if (loading) return <div className="radar-option-note historical">Loading historical radar...</div>;
+    if (error || !valid) {
+      return <div className="radar-option-note stale">Historical radar unavailable</div>;
+    }
+    return <div className="radar-option-note historical">
+      <span className="radar-freshness-dot" aria-hidden="true" />
+      Historical radar{" \u00b7 "}{cdtDateTime(valid)}
+    </div>;
+  }
+  const age = valid ? radarAgeMinutes(valid, now) : null;
+  const stale = age !== null && age > RADAR_STALE_AFTER_MINUTES;
+
+  if (loading) return <div className="radar-option-note">Checking radar time...</div>;
+  if (error || !valid) {
+    return <div className="radar-option-note stale">Radar time unavailable; image may be delayed</div>;
+  }
+
+  return (
+    <div className={`radar-option-note${stale ? " stale" : ""}`}>
+      <span className="radar-freshness-dot" aria-hidden="true" />
+      {stale ? "Radar delayed" : "Latest image"}{" \u00b7 "}{cdtDateTime(valid)}{" \u00b7 "}
+      {age === 0 ? "less than a minute old" : `${age} min old`}
     </div>
   );
 }

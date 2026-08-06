@@ -103,6 +103,7 @@ describe("countdown", () => {
 
 describe("stormTypeLabel", () => {
   it("maps known NHC classification codes", () => {
+    expect(stormTypeLabel("MH")).toBe("Major Hurricane");
     expect(stormTypeLabel("HU")).toBe("Hurricane");
     expect(stormTypeLabel("TS")).toBe("Tropical Storm");
     expect(stormTypeLabel("TD")).toBe("Tropical Depression");

@@ -485,6 +485,7 @@ export const LAYER_IDS = {
   trackLine: "gw-track-line",
   trackPoints: "gw-track-points",
   radar: "gw-radar",
+  radarArchive: "gw-radar-archive",
 } as const;
 
 export const SOURCE_IDS = {
@@ -502,6 +503,7 @@ export const SOURCE_IDS = {
   models: "gw-models",
   track: "gw-track",
   radar: "gw-radar",
+  radarArchive: "gw-radar-archive",
 } as const;
 
 // ---------------------------------------------------------------------------
